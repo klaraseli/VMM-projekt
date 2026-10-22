@@ -6,10 +6,10 @@ graph TD
     D --> E[Nahrazení chybějících hodnot<br/>pomocí KNN]
     E --> F([Vyčištěná data])
     
-    style A fill:#f9f9f9,stroke:#333,stroke-width:2px
-    style F fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px
-    style B fill:#fff,stroke:#666,stroke-width:1px
-    style C fill:#fff,stroke:#666,stroke-width:1px
-    style D fill:#fff,stroke:#666,stroke-width:1px
-    style E fill:#fff,stroke:#666,stroke-width:1px
+    style A fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000
+    style F fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px,color:#000
+    style B fill:#fff,stroke:#666,stroke-width:1px,color:#000
+    style C fill:#fff,stroke:#666,stroke-width:1px,color:#000
+    style D fill:#fff,stroke:#666,stroke-width:1px,color:#000
+    style E fill:#fff,stroke:#666,stroke-width:1px,color:#000
 ```
