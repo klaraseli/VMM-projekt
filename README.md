@@ -1,6 +1,3 @@
-
-PRINCIP ČIŠTĚNÍ DAT
-
 graph TD
     A([Surová data]) --> B[Nalezení nesprávných hodnot<br/>(např. věk mimo rozsah 15–22)]
     B --> C[Nalezení odlehlých hodnot<br/>(pomocí IQR)]
