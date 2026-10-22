@@ -1,3 +1,5 @@
+# ČIŠTĚNÍ DAT
+
 ```mermaid
 graph TD
     A([Surová data]) --> B[Nalezení nesprávných hodnot<br/>např. věk mimo rozsah 15–22]
