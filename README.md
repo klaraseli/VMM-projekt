@@ -1,3 +1,5 @@
+repozitář datasetu: https://archive.ics.uci.edu/dataset/320/student+performance
+
 # ČIŠTĚNÍ DAT
 
 ```mermaid
