@@ -1,26 +1,28 @@
 Vliv životního stylu a volného času
 
-Studenti s vysokou víkendovou konzumací alkoholu (Walc) dosahují prokazatelně nižšího finálního skóre (G3) než studenti s minimální konzumací.
+Studenti s vyšší celkovou týdenní konzumací alkoholu (agregované skóre Dalc a Walc) dosahují prokazatelně nižšího finálního skóre (G3) než studenti s minimální konzumací.
 
 Časté trávení času venku s přáteli (goout) pozitivně koreluje s vyšším počtem zameškaných vyučovacích hodin (absences).
 
 Studenti, kteří jsou momentálně v romantickém vztahu (romantic), vykazují v průměru méně času věnovaného samostudiu (studytime).
 
-Vysoká míra konzumace alkoholu v pracovní dny (Dalc) je spojena s horším hodnocením aktuálního zdravotního stavu (health).
+Studenti zapojení do mimoškolních výukových aktivit (activities) dosahují v průměru vyššího finálního studijního skóre (G3) než studenti bez těchto aktivit.
 
-Extrémní množství volného času po škole (freetime) nesnižuje studijní skóre, pokud je student zároveň zapojen do mimoškolních aktivit (activities).
 
 Role rodinného a sociálního zázemí
 
 Dosažené vzdělání matky (Medu) a otce (Fedu) má přímý vliv na rozhodnutí studenta usilovat o vyšší stupeň vzdělání (higher).
 
+Studenti, jejichž rodiče dosáhli vysokoškolského vzdělání (hodnota 4 u Medu a/nebo Fedu), dosahují v průměru signifikantně vyššího finálního studijního skóre (G3) než studenti, jejichž rodiče mají nižší stupeň vzdělání.
+
 Studenti s rodiči žijícími odděleně (Pstatus = A) mají statisticky významně vyšší počet dřívějších studijních neúspěchů (failures) než studenti ze společných domácností.
 
 Výborná kvalita rodinných vztahů (famrel) funguje jako ochranný faktor a negativně koreluje s konzumací alkoholu (Dalc, Walc).
 
-Studenti, jejichž rodiče pracují ve školství (Mjob nebo Fjob = teacher), dosahují stabilnějších výsledků mezi prvním (G1) a třetím ročníkem (G3).
+Studenti s rodiči v oboru školství (Mjob nebo Fjob = teacher) vyjadřují významně častěji zájem o pokračování ve vysokoškolském studiu (higher = yes).
 
 Rodinná podpora při vzdělávání (famsup) snižuje pravděpodobnost propadnutí (nižší hodnoty failures).
+
 
 Akademické návyky a školní podpora
 
@@ -30,8 +32,9 @@ Počet dřívějších studijních neúspěchů (failures) je nejsilnějším ne
 
 Navštěvování extra placených hodin (paid) vede k prokazatelnému nárůstu bodů (zlepšení) mezi prvním (G1) a finálním skóre (G3).
 
-Předchozí absolvování mateřské školy (nursery) má dlouhodobý pozitivní efekt na adaptaci a projevuje se nižším počtem absencí (absences).
+Studenti, kteří věnují více času samostudiu (vyšší hodnota studytime), dosahují prokazatelně lepšího finálního skóre (G3)
+
 
 Demografické a geografické faktory
 
-Městští studenti (address = U) vykazují signifikantně vyšší finální skóre (G3) oproti studentům z vesnic (address = R), což je částečně mediováno častějším přístupem k internetu (internet).
+Městští studenti (address = U) vykazují signifikantně vyšší finální skóre (G3) oproti studentům z vesnic (address = R).
