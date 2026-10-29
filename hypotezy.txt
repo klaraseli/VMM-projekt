@@ -1,0 +1,37 @@
+Vliv životního stylu a volného času
+
+Studenti s vysokou víkendovou konzumací alkoholu (Walc) dosahují prokazatelně nižšího finálního skóre (G3) než studenti s minimální konzumací.
+
+Časté trávení času venku s přáteli (goout) pozitivně koreluje s vyšším počtem zameškaných vyučovacích hodin (absences).
+
+Studenti, kteří jsou momentálně v romantickém vztahu (romantic), vykazují v průměru méně času věnovaného samostudiu (studytime).
+
+Vysoká míra konzumace alkoholu v pracovní dny (Dalc) je spojena s horším hodnocením aktuálního zdravotního stavu (health).
+
+Extrémní množství volného času po škole (freetime) nesnižuje studijní skóre, pokud je student zároveň zapojen do mimoškolních aktivit (activities).
+
+Role rodinného a sociálního zázemí
+
+Dosažené vzdělání matky (Medu) a otce (Fedu) má přímý vliv na rozhodnutí studenta usilovat o vyšší stupeň vzdělání (higher).
+
+Studenti s rodiči žijícími odděleně (Pstatus = A) mají statisticky významně vyšší počet dřívějších studijních neúspěchů (failures) než studenti ze společných domácností.
+
+Výborná kvalita rodinných vztahů (famrel) funguje jako ochranný faktor a negativně koreluje s konzumací alkoholu (Dalc, Walc).
+
+Studenti, jejichž rodiče pracují ve školství (Mjob nebo Fjob = teacher), dosahují stabilnějších výsledků mezi prvním (G1) a třetím ročníkem (G3).
+
+Rodinná podpora při vzdělávání (famsup) snižuje pravděpodobnost propadnutí (nižší hodnoty failures).
+
+Akademické návyky a školní podpora
+
+Počet dřívějších studijních neúspěchů (failures) je nejsilnějším negativním prediktorem konečného studijního skóre (G3).
+
+Čas strávený dojížděním (traveltime) nad 30 minut negativně ovlivňuje množství času, které student investuje do samostudia (studytime).
+
+Navštěvování extra placených hodin (paid) vede k prokazatelnému nárůstu bodů (zlepšení) mezi prvním (G1) a finálním skóre (G3).
+
+Předchozí absolvování mateřské školy (nursery) má dlouhodobý pozitivní efekt na adaptaci a projevuje se nižším počtem absencí (absences).
+
+Demografické a geografické faktory
+
+Městští studenti (address = U) vykazují signifikantně vyšší finální skóre (G3) oproti studentům z vesnic (address = R), což je částečně mediováno častějším přístupem k internetu (internet).
