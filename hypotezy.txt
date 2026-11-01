@@ -1,40 +1,27 @@
-Vliv životního stylu a volného času
+Hypotéza 1 
+H0: Mezi časem na samostudium (studytime) a finální známkou (G3) není kladný monotónní vztah (ρ ≤ 0). 
+H1: Čím více samostudia, tím vyšší finální známka (G3) (ρ > 0).
 
-Studenti s vyšší celkovou týdenní konzumací alkoholu (agregované skóre Dalc a Walc) dosahují prokazatelně nižšího finálního skóre (G3) než studenti s minimální konzumací.
+Hypotéza 2 
+H0: Rozdělení času na samostudium (studytime) je u zadaných a nezadaných studentů stejné. 
+H1: Rozdělení času na samostudium (studytime) se u obou skupin liší.
 
-Časté trávení času venku s přáteli (goout) pozitivně koreluje s vyšším počtem zameškaných vyučovacích hodin (absences).
+Hypotéza 3 
+H0: Průměrná finální známka (G3) studentů s vysokoškolsky vzdělanými rodiči není vyšší než u ostatních studentů (μ_VŠ ≤ μ_bez). 
+H1: Průměrná finální známka (G3) studentů s vysokoškolsky vzdělanými rodiči je vyšší (μ_VŠ > μ_bez).
 
-Studenti, kteří jsou momentálně v romantickém vztahu (romantic), vykazují v průměru méně času věnovaného samostudiu (studytime).
+Hypotéza 4 
+H0: Rozdělení nejvyššího dosaženého vzdělání rodičů (max_edu) je stejné u studentů, kteří chtějí na VŠ, i u těch, kteří nechtějí. 
+H1: Rozdělení nejvyššího dosaženého vzdělání rodičů (max_edu) se u obou skupin liší.
 
-Studenti zapojení do mimoškolních výukových aktivit (activities) dosahují v průměru vyššího finálního studijního skóre (G3) než studenti bez těchto aktivit.
+Hypotéza 5 
+H0: Mezi kvalitou rodinných vztahů (famrel) a souhrnným skóre konzumace alkoholu (Dalc + Walc) není záporný monotónní vztah (ρ ≥ 0). 
+H1: Lepší rodinné vztahy souvisí s nižším skóre konzumace alkoholu (ρ < 0).
 
+Hypotéza 6 
+H0: Mezi souhrnným skóre konzumace alkoholu (Dalc + Walc) a finální známkou (G3) není záporný monotónní vztah (ρ ≥ 0). 
+H1: Vyšší skóre konzumace alkoholu souvisí s nižší finální známkou (G3) (ρ < 0).
 
-Role rodinného a sociálního zázemí
-
-Dosažené vzdělání matky (Medu) a otce (Fedu) má přímý vliv na rozhodnutí studenta usilovat o vyšší stupeň vzdělání (higher).
-
-Studenti, jejichž rodiče dosáhli vysokoškolského vzdělání (hodnota 4 u Medu a/nebo Fedu), dosahují v průměru signifikantně vyššího finálního studijního skóre (G3) než studenti, jejichž rodiče mají nižší stupeň vzdělání.
-
-Studenti s rodiči žijícími odděleně (Pstatus = A) mají statisticky významně vyšší počet dřívějších studijních neúspěchů (failures) než studenti ze společných domácností.
-
-Výborná kvalita rodinných vztahů (famrel) funguje jako ochranný faktor a negativně koreluje s konzumací alkoholu (Dalc, Walc).
-
-Studenti s rodiči v oboru školství (Mjob nebo Fjob = teacher) vyjadřují významně častěji zájem o pokračování ve vysokoškolském studiu (higher = yes).
-
-Rodinná podpora při vzdělávání (famsup) snižuje pravděpodobnost propadnutí (nižší hodnoty failures).
-
-
-Akademické návyky a školní podpora
-
-Počet dřívějších studijních neúspěchů (failures) je nejsilnějším negativním prediktorem konečného studijního skóre (G3).
-
-Čas strávený dojížděním (traveltime) nad 30 minut negativně ovlivňuje množství času, které student investuje do samostudia (studytime).
-
-Navštěvování extra placených hodin (paid) vede k prokazatelnému nárůstu bodů (zlepšení) mezi prvním (G1) a finálním skóre (G3).
-
-Studenti, kteří věnují více času samostudiu (vyšší hodnota studytime), dosahují prokazatelně lepšího finálního skóre (G3)
-
-
-Demografické a geografické faktory
-
-Městští studenti (address = U) vykazují signifikantně vyšší finální skóre (G3) oproti studentům z vesnic (address = R).
+Hypotéza 7 
+H0: Po zohlednění vlivu školy je rozdíl ve finálních známkách (G3) mezi městem a vesnicí nulový (β_address = 0). 
+H1: Po zohlednění vlivu školy je rozdíl ve finálních známkách (G3) mezi městem a vesnicí nenulový (β_address ≠ 0).
