@@ -3,16 +3,16 @@ H0: Mezi časem na samostudium (studytime) a finální známkou (G3) není kladn
 H1: Čím více samostudia, tím vyšší finální známka (G3) (ρ > 0).
 
 Hypotéza 2 
-H0: Rozdělení času na samostudium (studytime) je u zadaných a nezadaných studentů stejné. 
-H1: Rozdělení času na samostudium (studytime) se u obou skupin liší.
+H0: Studenti v romantickém vztahu a studenti bez vztahu věnují samostudiu stejné množství času.
+H1: Studenti v romantickém vztahu a studenti bez vztahu věnují samostudiu různé množství času.
 
 Hypotéza 3 
 H0: Průměrná finální známka (G3) studentů s vysokoškolsky vzdělanými rodiči není vyšší než u ostatních studentů (μ_VŠ ≤ μ_bez). 
 H1: Průměrná finální známka (G3) studentů s vysokoškolsky vzdělanými rodiči je vyšší (μ_VŠ > μ_bez).
 
 Hypotéza 4 
-H0: Rozdělení nejvyššího dosaženého vzdělání rodičů (max_edu) je stejné u studentů, kteří chtějí na VŠ, i u těch, kteří nechtějí. 
-H1: Rozdělení nejvyššího dosaženého vzdělání rodičů (max_edu) se u obou skupin liší.
+H0: Rodiče studentů, kteří chtějí na VŠ, nemají vyšší vzdělání než rodiče studentů, kteří na VŠ nechtějí.
+H1: Rodiče studentů, kteří chtějí na VŠ, mají vyšší vzdělání než rodiče studentů, kteří na VŠ nechtějí.
 
 Hypotéza 5 
 H0: Mezi kvalitou rodinných vztahů (famrel) a souhrnným skóre konzumace alkoholu (Dalc + Walc) není záporný monotónní vztah (ρ ≥ 0). 
