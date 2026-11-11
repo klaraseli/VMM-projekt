@@ -1,0 +1,6 @@
+Úloha,Model,Zkoumané parametry,Optimální parametr,Default Skóre,Tuned Skóre,Zlepšení Delta,Metrika
+Regrese,Ridge Regrese,alpha: 0.01 .. 100.0,alpha=10.0,0.8379,0.8384,0.0005,R2
+Regrese,Lasso Regrese,alpha: 0.001 .. 1.0,alpha=0.2,0.7548,0.8473,0.0925,R2
+Regrese,Random Forest,"depth: 4..None, n: 50..100","depth=4, n=50",0.8242,0.8406,0.0163,R2
+Klasifikace,SVC (Balanced),"C: 0.1..10, kernel: linear/rbf","C=0.5, kernel=linear",83.31,86.72,3.41,Vyvážená Acc (%)
+Klasifikace,Gradient Boosting,"lr: 0.05..0.1, depth: 2..3","lr=0.1, depth=2",82.36,84.59,2.23,Vyvážená Acc (%)

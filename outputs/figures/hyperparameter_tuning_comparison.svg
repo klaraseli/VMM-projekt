@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 460" width="820" height="460" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; font-family:system-ui, sans-serif;">
+  <rect width="820" height="460" fill="#ffffff" rx="8"/>
+  <text x="370.0" y="28" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">Vliv optimalizace hyperparametrů (GridSearchCV)</text>
+  <text x="370.0" y="448" text-anchor="middle" font-size="12" fill="#64748b">Optimalizovaný model</text>
+  <text x="24" y="220.0" text-anchor="middle" font-size="12" fill="#64748b" transform="rotate(-90, 24, 220.0)">Skóre (R² / Vyvážená Acc %)</text>
+
+  <!-- Grid -->
+  <line x1="80" y1="380.0" x2="660" y2="380.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="316.0" x2="660" y2="316.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="252.0" x2="660" y2="252.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="188.0" x2="660" y2="188.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="124.0" x2="660" y2="124.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="60.0" x2="660" y2="60.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- Zero Line -->
+  <line x1="80" y1="380.0" x2="660" y2="380.0" stroke="#94a3b8" stroke-width="1.5"/>
+
+  <!-- Sloupce -->
+  <rect x="94.5" y="377.2" width="41.5" height="2.8" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="138.0" y="377.2" width="41.5" height="2.8" rx="2" fill="#2563eb" opacity="0.85"/><rect x="210.5" y="377.5" width="41.5" height="2.5" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="254.0" y="377.2" width="41.5" height="2.8" rx="2" fill="#2563eb" opacity="0.85"/><rect x="326.5" y="377.2" width="41.5" height="2.8" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="370.0" y="377.2" width="41.5" height="2.8" rx="2" fill="#2563eb" opacity="0.85"/><rect x="442.5" y="100.5" width="41.5" height="279.5" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="486.0" y="89.1" width="41.5" height="290.9" rx="2" fill="#2563eb" opacity="0.85"/><rect x="558.5" y="103.7" width="41.5" height="276.3" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="602.0" y="96.2" width="41.5" height="283.8" rx="2" fill="#2563eb" opacity="0.85"/>
+
+  <!-- Popisky os -->
+  <text x="70" y="384.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">0.00</text><text x="70" y="320.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">19.08</text><text x="70" y="256.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">38.16</text><text x="70" y="192.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">57.24</text><text x="70" y="128.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">76.31</text><text x="70" y="64.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">95.39</text>
+  <text x="138.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >Ridge Regrese</text><text x="254.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >Lasso Regrese</text><text x="370.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >Random Forest</text><text x="486.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >SVC (Balanced)</text><text x="602.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >Gradient Boos…</text>
+
+  <!-- Legenda -->
+  <rect x="680" y="72" width="12" height="12" rx="2" fill="#94a3b8"/><text x="698" y="82" font-size="11" fill="#334155">Před laděním (Default)</text><rect x="680" y="96" width="12" height="12" rx="2" fill="#2563eb"/><text x="698" y="106" font-size="11" fill="#334155">Po ladění (Tuned)</text>
+</svg>

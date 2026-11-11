@@ -1,0 +1,12 @@
+Model,R2 (vysvětlený rozptyl),RMSE (chyba známky),MAE (průměrná chyba)
+"SVR (RBF jádro, C=2.0)",0.274,2.711,1.951
+"ElasticNet (alpha=0.1, l1=0.5)",0.262,2.729,1.983
+Random Forest (100 stromů),0.262,2.734,2.013
+Gradient Boosting (100 stromů),0.261,2.74,2.032
+"Lasso regrese (L1, alpha=0.1)",0.26,2.734,1.988
+Lineární regrese (OLS),0.246,2.754,2.01
+"Ridge regrese (L2, alpha=1.0)",0.246,2.753,2.009
+"SVR (Lineární jádro, C=1.0)",0.245,2.76,2.04
+k-NN Regresor (k=5),0.101,3.013,2.234
+Dummy (Baseline průměr),-0.013,3.211,2.41
+Rozhodovací strom (max_depth=5),-0.055,3.225,2.354
