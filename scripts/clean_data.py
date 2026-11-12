@@ -186,12 +186,22 @@ def one_hot_multi(df: pd.DataFrame) -> pd.DataFrame:
 
 def clean_data(df: pd.DataFrame, exclude_targets_from_imputation: bool = True) -> pd.DataFrame:
     """
-    Kompletní čistící funkce:
-    1. Nahrazení nesmyslných hodnot (včetně absences == -1) -> NaN
-    2. Kódování kategorií do numerických kódů
-    3. KNN imputace chybějících hodnot (s vyloučením targetů pro prevenci leakage)
-    4. One-Hot encoding pro vícehodnotové kategorie
+    Kompletní čistící funkce pro samostatnou tvorbu vyčištěného datasetu:
+    1. Vytvoření indikátoru chybějících absencí (absences_missing: 1 pokud absences < 0, jinak 0).
+    2. Nahrazení nesmyslných hodnot (včetně absences == -1 a age == 0) -> NaN.
+    3. Kódování kategorií do numerických kódů.
+    4. KNN imputace chybějících hodnot (s vyloučením targetů pro prevenci leakage).
+    5. One-Hot encoding pro vícehodnotové kategorie.
+    
+    POZNÁMKA: Pro strojové učení v test_models.py je KNNImputer zapouzdřen
+    přímo v scikit-learn Pipeline pro striktní fold-isolation při křížové validaci.
     """
+    df = df.copy()
+    # Explicitní indikátor chybějící docházky (33.6 % vzorků)
+    if "absences" in df.columns:
+        s_abs = pd.to_numeric(df["absences"], errors="coerce")
+        df["absences_missing"] = (s_abs < 0).astype(int)
+
     df = replace_nonsense_numeric(df)
     df = replace_outliers_iqr(df)
     df = encode_categorical(df)
@@ -202,9 +212,19 @@ def clean_data(df: pd.DataFrame, exclude_targets_from_imputation: bool = True) -
 
 if __name__ == "__main__":
     import os
-    raw_path = "../data/raw/student_performance_Final.csv"
-    if not os.path.exists(raw_path):
-        raw_path = "data/raw/student_performance_Final.csv"
+    raw_candidates = [
+        "data/raw/student_performance_Final.csv",
+        "../data/raw/student_performance_Final.csv",
+        "VMM-projekt/data/raw/student_performance_Final.csv"
+    ]
+    raw_path = None
+    for rc in raw_candidates:
+        if os.path.exists(rc):
+            raw_path = rc
+            break
+
+    if raw_path is None:
+        raise FileNotFoundError("Surový soubor student_performance_Final.csv nebyl nalezen!")
 
     print(f"[*] Spouštím čištění dat z: {raw_path}")
     raw_df = pd.read_csv(raw_path)
@@ -213,7 +233,11 @@ if __name__ == "__main__":
     print(f"[+] Absences: min={clean_df['absences'].min()}, max={clean_df['absences'].max()}, NaN={clean_df['absences'].isna().sum()}")
     print(f"[+] G3: min={clean_df['G3'].min()}, max={clean_df['G3'].max()}, NaN={clean_df['G3'].isna().sum()}")
 
-    out_path = "data/processed/student_performance_cleaned.csv"
+    # Výstupní složka podle umístění surových dat
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(raw_path))))
+    # Najít kořen repozitáře (obsahuje složku data)
+    data_dir = os.path.dirname(os.path.dirname(os.path.abspath(raw_path)))
+    out_path = os.path.join(data_dir, "processed", "student_performance_cleaned.csv")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     clean_df.to_csv(out_path, index=False)
     print(f"[+] Uloženo do: {out_path}")

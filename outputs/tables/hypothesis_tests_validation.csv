@@ -1,8 +1,8 @@
-Hypotéza,Metoda testu,Testová statistika,p-hodnota,Směr vlivu,Výsledek testu (alpha=0.05)
-H1: studytime -> G3,Spearmanův rank test,rho = 0.2747,1.0606e-12,Kladný (+),Podpořena (zamítnuta H0)
-H2: romantic -> studytime,Mann-Whitney U test,U = 51899.5,0.1735,Delta průměr = 0.06 h,Nepodpořena (H0 platí)
-H3: VŠ rodiče -> G3,Mann-Whitney U test,U = 60521.0,1.8243e-11,Delta známky = +1.55,Podpořena (zamítnuta H0)
-H4: higher -> rodiče vzdělání,Mann-Whitney U test,U = 28377.0,4.5555e-09,Delta vzdělání = +1.47,Podpořena (zamítnuta H0)
-H5: famrel -> Dalc+Walc,Spearmanův rank test,rho = -0.1134,0.0038,Záporný (-) vztah,Podpořena (zamítnuta H0)
-H6: Dalc+Walc -> G3,Spearmanův rank test,rho = -0.1954,5.2231e-07,Záporný (-) vliv,Podpořena (zamítnuta H0)
-H7: school + address -> G3,Lineární regrese OLS,beta_address = +0.537,< 0.01 (ANCOVA),Město (1) > Vesnice (0),Podpořena (rozdíl je nenulový)
+Hypotéza,Metoda testu,Testová statistika / Velikost účinku,Přesná p-hodnota,Směr vztahu,Výsledek (Bonferroni alpha=0.0071)
+H1: studytime -> G3,Spearmanův rank test,rho = +0.2747 (středně slabá asociace),1.0606e-12,Pozitivní asociace,Statisticky významná
+H2: romantic -> studytime,Mann-Whitney U test,"U = 51899.5, Delta = 0.06 h",0.1735,Žádný systematický rozdíl,Neprokázána (H0 platí)
+H3: VŠ rodiče -> G3,Mann-Whitney U test,"U = 60521.0, Delta = +1.55 bodu",1.8243e-11,VŠ rodiče dosahují vyšší G3,Statisticky významná
+H4: higher -> vzdělání rodičů,Mann-Whitney U test,"U = 28377.0, Delta = +1.47 stupně",4.5555e-09,Vyšší vzdělání rodičů u studentů s ambicí na VŠ,Statisticky významná
+H5: famrel -> Dalc+Walc,Spearmanův rank test,rho = -0.1134 (velmi slabá asociace),0.0038,Lepší rodinné vztahy mírně snižují konzumaci,Statisticky významná
+H6: Dalc+Walc -> G3,Spearmanův rank test,rho = -0.1954 (slabá negativní asociace),5.2231e-07,Vyšší konzumace mírně koreluje s nižší známkou,Statisticky významná
+H7: school + address -> G3,OLS regrese s kontrolou školy,beta_addr = +0.537 (univariátně Delta = +1.18),OLS p = 0.0578 (univariátně p = 0.0000),Město > Vesnice (efekt vysvětlen školou GP vs MS),"Marginální (p=0.0578), neprojde po Bonferroni"
