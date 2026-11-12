@@ -187,16 +187,16 @@ $$\alpha_{\text{adj}} = \frac{0.05}{7} \approx 0.00714$$
 | Hypotéza | Testovaná závislost | Statistická metoda | Testová statistika & Velikost účinku | Přesná $p$-hodnota | Výsledek (Bonferroni $\alpha=0.0071$) |
 | :--- | :--- | :--- | :--- | :---: | :--- |
 | **H1** | `studytime` $\to$ `G3` | Spearmanův rank test | $\rho = +0.2747$ (slabá asociace) | $1.06 \times 10^{-12}$ | **Statisticky významná:** Delší studium slabě pozitivně koreluje se známkou. |
-| **H2** | `romantic` $\to$ `studytime` | Mann-Whitney U test | $U = 51899.5$, $\Delta = -0.11$ h | $0.1735$ | **Neprokázána ($H_0$ platí):** Partnerský vztah nesouvisí s dobou studia. |
+| **H2** | `romantic` $\to$ `studytime` | Mann-Whitney U test | $U = 51899.5$, $\Delta = +0.06$ h | $0.1735$ | **Neprokázána ($H_0$ platí):** Partnerský vztah nesouvisí s dobou studia. |
 | **H3** | VŠ rodiče $\to$ `G3` | Mann-Whitney U test | $U = 60521.0$, $\Delta = +1.55$ bodu | $1.82 \times 10^{-11}$ | **Statisticky významná:** Děti vysokoškoláků dosahují v průměru o 1.55 bodu více. |
 | **H4** | `higher` $\to$ vzdělání rodičů | Mann-Whitney U test | $U = 28377.0$, $\Delta = +1.47$ stupně | $4.56 \times 10^{-9}$ | **Statisticky významná:** Studenti mířící na VŠ mají vzdělanější rodiče. |
-| **H5** | `famrel` $\to$ `Dalc+Walc` | Spearmanův rank test | $\rho = -0.1134$ (velmi slabá asociace) | $0.0038$ | **Statisticky významná ($p < 0.0071$):** Lepší vztahy slabě negativně korelují s alkoholem. |
+| **H5** | `famrel` $\to$ `Dalc+Walc` | Spearmanův rank test | $\rho = -0.1134$ (slabá negativní asociace) | $0.0038$ | **Statisticky významná ($p < 0.0071$):** Lepší rodinné vztahy slabě negativně korelují s alkoholem. |
 | **H6** | `Dalc+Walc` $\to$ `G3` | Spearmanův rank test | $\rho = -0.1954$ (slabá negativní asociace) | $5.22 \times 10^{-7}$ | **Statisticky významná:** Vyšší konzumace mírně koreluje s horší známkou. |
-| **H7** | `school + address` $\to$ `G3` | OLS s kontrolou školy | $\beta_{\text{addr}} = +0.537$ (univariátně $\Delta = +1.18$) | OLS $p = 0.0578$ (univariátně $p < 1\text{e-}4$) | **Marginální (po kontrole školy nevýznamná po Bonferroni).** |
+| **H7** | `school + address` $\to$ `G3` | OLS s kontrolou školy | $\beta_{\text{addr}} = +0.537$ (univariátně $\Delta = +1.18$) | OLS $p = 0.0578$ (univariátně $p < 1\text{e-}4$) | **Marginální (po kontrole školy klesá beta na polovinu, část rozdílu souvisí se školou; neprokázána po Bonferroni).** |
 
 ### Podrobný rozbor hypotézy H7 (Bydliště vs. Škola):
-Při univariátním testování mají studenti z města (`address = U`) významně vyšší známky než z venkova ($p < 1\text{e-}4$, rozdíl $+1.18$ bodu). Jakmile však do modelu zařadíme školu (`school = GP vs MS`, $\beta_{\text{school}} = -1.743, p < 10^{-9}$), koeficient bydliště klesne na $\beta = +0.537$ s $p = 0.0578$.
-To dokazuje, že **rozdíl v prospěchu mezi městem a venkovem je z velké části vysvětlen volbou školy** (venkovští studenti častěji navštěvují školu MS, která má celkově nižší průměrné skóre).
+Při univariátním testování mají studenti z města (`address = U`) statisticky významně vyšší známky než z venkova ($p < 1\text{e-}4$, rozdíl $+1.18$ bodu). Jakmile však do modelu zařadíme školu (`school = GP vs MS`, $\beta_{\text{school}} = -1.743, p < 10^{-9}$), koeficient bydliště klesne zhruba na polovinu ($\beta = +0.537$) a dosahuje pouze marginální hodnoty $p = 0.0578$ (po Bonferroniho korekci je neprůkazný).
+Nejde o nulový efekt, ale pokles parametru $\beta$ na méně než polovinu naznačuje, že **část rozdílu v prospěchu mezi městem a venkovem souvisí s výběrem školy** (bydliště a navštěvovaná škola jsou v datech vzájemně provázané – studenti z venkova častěji navštěvují školu MS, která vykazuje celkově nižší průměrné známky).
 
 ---
 

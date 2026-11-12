@@ -8,19 +8,19 @@ Metodické pilíře (V3.1 - Striktní metodická integrita a správné pořadí 
    - Cílová proměnná G3 (a průběžné známky) je striktně oddělena před jakoukoliv modelovací fází.
    - Veškeré transformace jsou zapouzdřeny přímo v scikit-learn Pipeline v pořadí:
      Pipeline = [('scaler', StandardScaler()), ('imputer', KNNImputer(n=5)), ('m', model)]
-   - StandardScaler nejdříve normalizuje data na z-skóre (ignuruje NaNs), takže KNNImputer
+   - StandardScaler nejdříve normalizuje data na z-skóre (ignoruje NaNs), takže KNNImputer
      počítá euklidovské vzdálenosti na férově škálovaných datech a nedochází k dominanci
      proměnných s velkým fyzickým rozsahem (absences, age).
    - Veškeré transformace probíhají striktně uvnitř trénovacích foldů (X_train).
 2. Transparentní ošetření chybějící docházky (Absences) a dynamická citlivostní analýza:
    - U 218 z 649 studentů (33.6 %) se v surových datech vyskytuje hodnota absences == -1.
    - Zařazen explicitní binární indikátor chybění `absences_missing` (1 = chybělo).
-   - Dvouvýběrový t-test ověřuje rozdíl v G3 (nenalezen důkaz o systematické vazbě, p = 0.2862).
+   - Dvouvýběrový t-test ověřuje rozdíl v G3 mezi skupinami studentů (ověření předpokladu MAR/MCAR).
    - Analýza citlivosti dynamicky měří posun R² s absencemi vs. zcela bez absencí.
 3. Dva jasně definované časové scénáře:
-   - Scénář A: Průběžná predikce (Full model se známkami G1 a G2) -> horní mez přesnosti (R² ~ 0.84).
+   - Scénář A: Průběžná predikce (Full model se známkami G1 a G2) -> horní mez přesnosti (daná silnou autokorelací známek).
    - Scénář B: Včasné varování (Early Warning: socio-demografie, návyky a docházka, bez G1 a G2)
-     -> klíčová reálná výzva pro strojové učení (R² ~ 0.25 - 0.26).
+     -> klíčová reálná výzva pro strojové učení.
 4. Reprezentativní srovnání rodin modelů:
    - Dummy baseline, Lineární regularizované (OLS, Ridge, Lasso, ElasticNet, Logistická regrese),
    - Sousedské a jádrové metody (k-NN, SVR a SVC s lineárním i RBF jádrem),
@@ -38,7 +38,7 @@ Metodické pilíře (V3.1 - Striktní metodická integrita a správné pořadí 
 8. Rigorózní statistické ověření 7 hypotéz týmu:
    - Nekauzální korelační terminologie (asociace, korelace, rozdíl průměrů).
    - Uvádění velikostí účinku (Spearman rho, delta průměrů, OLS beta).
-   - Přesné p-hodnoty (univariate address p < 1e-4 vs. kontrolovaný OLS p = 0.0578).
+   - Přesné p-hodnoty a dynamické testy (univariátní asociace address vs. OLS s kontrolou pro školu).
    - Konzervativní Bonferroniho korekce (alpha_adj = 0.05 / 7 = 0.00714).
 ============================================================================================
 """
@@ -220,7 +220,9 @@ def evaluate_absences_sensitivity(df_raw, X_B, y_reg, feat_B):
     print(f"    - Průměrná známka G3 (chybějící docházka):  {g3_miss.mean():.2f} +/- {g3_miss.std():.2f}")
     print(f"    - Průměrná známka G3 (dostupná docházka):   {g3_pres.mean():.2f} +/- {g3_pres.std():.2f}")
     print(f"    - Rozdíl průměrů: {g3_miss.mean() - g3_pres.mean():+.2f} bodu, Dvouvýběrový t-test p-hodnota = {t_res.pvalue:.4f}")
-    print("    -> Dvouvýběrový t-test nenalezl statisticky významný rozdíl v G3 (p = 0.2862), což neodporuje předpokladu MAR/MCAR (nenalezen důkaz o systematické vazbě chybění docházky na prospěch).\n")
+    t_eval = "nenalezl statisticky významný rozdíl v G3" if t_res.pvalue >= 0.05 else "nalezl statisticky významný rozdíl v G3"
+    t_concl = "což neodporuje předpokladu MAR/MCAR (nenalezen důkaz o systematické vazbě chybění docházky na prospěch)" if t_res.pvalue >= 0.05 else "což indikuje možnou nenáhodnost chybění docházky"
+    print(f"    -> Dvouvýběrový t-test {t_eval} (p = {t_res.pvalue:.4f}), {t_concl}.\n")
 
     # Porovnání modelů s absencemi vs bez absencí
     idx_no_abs = [i for i, c in enumerate(feat_B) if c not in ["absences", "absences_missing"]]
@@ -599,7 +601,7 @@ def run_nested_hyperparameter_tuning(X_A, X_B, y_reg, y_clf):
 
 
 # =============================================================================
-# KROK 6: STATISTICKÉ OVĚŘENÍ 7 HYPOTÉZ TÝMU (KOREKTNÍ STATISTICKÉ TESTY)
+# KROK 6: STATISTICKÉ OVĚŘENÍ 7 HYPOTÉZ TÝMU (DYNAMICKÉ TESTY A KOREKCE)
 # =============================================================================
 def test_team_hypotheses(df_raw):
     """
@@ -607,12 +609,32 @@ def test_team_hypotheses(df_raw):
     - Všechny proměnné v hypotézách H1-H7 jsou kompletně pozorované (žádná hodnota nechybí).
     - Důsledné používání ne-kauzální terminologie (asociace, korelace, rozdíl průměrů).
     - Výpočet přesných p-hodnot a velikostí účinku (effect sizes).
-    - U H7 se přesně rozlišuje univariátní asociace (p < 1e-4) a OLS model kontrolovaný pro školu (p = 0.0578).
+    - U H7 se testuje univariátní asociace bydliště i bivariátní OLS model s kontrolou pro školu.
     - Zohledněna Bonferroniho korekce pro vícenásobné testování (alpha_adj = 0.05 / 7 = 0.00714).
     """
     print("=" * 96)
     print(" STATISTICKÉ TESTOVÁNÍ HYPOTÉZ (DYNAMICKÉ TESTY, EFEKT-SIZES A BONFERRONI)")
     print("=" * 96)
+
+    def classify_association(r: float) -> str:
+        """Dynamicky klasifikuje sílu a směr asociace dle absolutní hodnoty koeficientu."""
+        ar = abs(r)
+        if ar < 0.1:
+            strength = "velmi slabá"
+        elif ar < 0.3:
+            strength = "slabá"
+        elif ar < 0.5:
+            strength = "střední"
+        else:
+            strength = "silná"
+        direction = "pozitivní" if r > 0 else "negativní" if r < 0 else "nulová"
+        return f"{strength} {direction} asociace"
+
+    def format_p(p: float) -> str:
+        """Formátuje p-hodnotu tak, aby nikdy nevracela zavádějící p = 0.0000."""
+        if p < 1e-4:
+            return "< 1e-4"
+        return f"= {p:.4f}"
 
     df = df_raw.copy()
     for col, m in BINARY_MAPS.items():
@@ -622,16 +644,19 @@ def test_team_hypotheses(df_raw):
     hyp_results = []
     bonferroni_alpha = 0.05 / 7.0  # 0.00714
 
-    # H1: studytime vs G3 (slabá pozitivní monotónní asociace)
+    # H1: studytime vs G3 (dynamická asociace)
     rho1, p1 = stats.spearmanr(df["studytime"], df["G3"])
     h1_sup = (rho1 > 0) and (p1 < bonferroni_alpha)
+    h1_assoc = classify_association(rho1)
+    h1_dir = "Pozitivní monotónní asociace (vyšší studijní čas ~ vyšší známka)" if rho1 > 0 else "Negativní asociace"
+    h1_verdict = "Statisticky významná" if h1_sup else ("Marginální (p < 0.05)" if p1 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H1: studytime -> G3",
         "Metoda testu": "Spearmanův rank test",
-        "Testová statistika / Velikost účinku": f"rho = +{rho1:.4f} (slabá asociace)",
-        "Přesná p-hodnota": f"{p1:.4e}",
-        "Směr vztahu": "Pozitivní asociace",
-        "Výsledek (Bonferroni alpha=0.0071)": "Statisticky významná" if h1_sup else "Nevýznamná"
+        "Testová statistika / Velikost účinku": f"rho = {rho1:+.4f} ({h1_assoc})",
+        "Přesná p-hodnota": f"{p1:.4e} (p < 1e-4)" if p1 < 1e-4 else f"{p1:.4f}",
+        "Směr vztahu": h1_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": h1_verdict
     })
 
     # H2: romantic vs studytime (rozdíl v čase studia podle vztahu)
@@ -640,13 +665,15 @@ def test_team_hypotheses(df_raw):
     u2, p2 = stats.mannwhitneyu(st_rom, st_norom, alternative="two-sided")
     d2 = st_rom.mean() - st_norom.mean()
     h2_sup = p2 < bonferroni_alpha
+    h2_dir = "Ve vztahu studuje více" if (d2 > 0 and p2 < 0.05) else ("Ve vztahu studuje méně" if (d2 < 0 and p2 < 0.05) else f"Bez prokazatelného rozdílu (Delta = {d2:+.2f} h)")
+    h2_verdict = "Statisticky významná" if h2_sup else ("Marginální (p < 0.05)" if p2 < 0.05 else "Neprokázána (H0 platí)")
     hyp_results.append({
         "Hypotéza": "H2: romantic -> studytime",
         "Metoda testu": "Mann-Whitney U test",
-        "Testová statistika / Velikost účinku": f"U = {u2:.1f}, Delta = {d2:.2f} h",
-        "Přesná p-hodnota": f"{p2:.4f}",
-        "Směr vztahu": "Žádný systematický rozdíl",
-        "Výsledek (Bonferroni alpha=0.0071)": "Statisticky významná" if h2_sup else "Neprokázána (H0 platí)"
+        "Testová statistika / Velikost účinku": f"U = {u2:.1f}, Delta = {d2:+.2f} h",
+        "Přesná p-hodnota": f"{p2:.4e} (p < 1e-4)" if p2 < 1e-4 else f"{p2:.4f}",
+        "Směr vztahu": h2_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": h2_verdict
     })
 
     # H3: VŠ vzdělání rodičů vs G3
@@ -656,13 +683,15 @@ def test_team_hypotheses(df_raw):
     u3, p3 = stats.mannwhitneyu(g3_he, g3_nohe, alternative="greater")
     d3 = g3_he.mean() - g3_nohe.mean()
     h3_sup = p3 < bonferroni_alpha
+    h3_dir = f"VŠ rodiče dosahují vyšší G3 (Delta = {d3:+.2f} bodu)" if d3 > 0 else "Bez převahy VŠ rodičů"
+    h3_verdict = "Statisticky významná" if h3_sup else ("Marginální (p < 0.05)" if p3 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H3: VŠ rodiče -> G3",
         "Metoda testu": "Mann-Whitney U test",
-        "Testová statistika / Velikost účinku": f"U = {u3:.1f}, Delta = +{d3:.2f} bodu",
-        "Přesná p-hodnota": f"{p3:.4e}",
-        "Směr vztahu": "VŠ rodiče dosahují vyšší G3",
-        "Výsledek (Bonferroni alpha=0.0071)": "Statisticky významná" if h3_sup else "Nevýznamná"
+        "Testová statistika / Velikost účinku": f"U = {u3:.1f}, Delta = {d3:+.2f} bodu",
+        "Přesná p-hodnota": f"{p3:.4e} (p < 1e-4)" if p3 < 1e-4 else f"{p3:.4f}",
+        "Směr vztahu": h3_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": h3_verdict
     })
 
     # H4: higher vs vzdělání rodičů (Medu + Fedu)
@@ -672,38 +701,46 @@ def test_team_hypotheses(df_raw):
     u4, p4 = stats.mannwhitneyu(edu_high, edu_nohigh, alternative="greater")
     d4 = edu_high.mean() - edu_nohigh.mean()
     h4_sup = p4 < bonferroni_alpha
+    h4_dir = f"Vyšší vzdělání rodičů u studentů s ambicí na VŠ (Delta = {d4:+.2f} stupně)" if d4 > 0 else "Bez rozdílu"
+    h4_verdict = "Statisticky významná" if h4_sup else ("Marginální (p < 0.05)" if p4 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H4: higher -> vzdělání rodičů",
         "Metoda testu": "Mann-Whitney U test",
-        "Testová statistika / Velikost účinku": f"U = {u4:.1f}, Delta = +{d4:.2f} stupně",
-        "Přesná p-hodnota": f"{p4:.4e}",
-        "Směr vztahu": "Vyšší vzdělání rodičů u studentů s ambicí na VŠ",
-        "Výsledek (Bonferroni alpha=0.0071)": "Statisticky významná" if h4_sup else "Nevýznamná"
+        "Testová statistika / Velikost účinku": f"U = {u4:.1f}, Delta = {d4:+.2f} stupně",
+        "Přesná p-hodnota": f"{p4:.4e} (p < 1e-4)" if p4 < 1e-4 else f"{p4:.4f}",
+        "Směr vztahu": h4_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": h4_verdict
     })
 
     # H5: famrel vs alkohol (Dalc + Walc)
     alc = df["Dalc"] + df["Walc"]
     rho5, p5 = stats.spearmanr(df["famrel"], alc)
     h5_sup = (rho5 < 0) and (p5 < bonferroni_alpha)
+    h5_assoc = classify_association(rho5)
+    h5_dir = "Lepší rodinné vztahy slabě negativně korelují s alkoholem" if rho5 < 0 else "Pozitivní korelace s alkoholem"
+    h5_verdict = "Statisticky významná" if h5_sup else ("Marginální (p < 0.05)" if p5 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H5: famrel -> Dalc+Walc",
         "Metoda testu": "Spearmanův rank test",
-        "Testová statistika / Velikost účinku": f"rho = {rho5:.4f} (velmi slabá asociace)",
-        "Přesná p-hodnota": f"{p5:.4f}",
-        "Směr vztahu": "Lepší rodinné vztahy slabě negativně korelují s konzumací alkoholu",
-        "Výsledek (Bonferroni alpha=0.0071)": "Statisticky významná" if h5_sup else "Nevýznamná"
+        "Testová statistika / Velikost účinku": f"rho = {rho5:+.4f} ({h5_assoc})",
+        "Přesná p-hodnota": f"{p5:.4e} (p < 1e-4)" if p5 < 1e-4 else f"{p5:.4f}",
+        "Směr vztahu": h5_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": h5_verdict
     })
 
     # H6: alkohol (Dalc + Walc) vs G3
     rho6, p6 = stats.spearmanr(alc, df["G3"])
     h6_sup = (rho6 < 0) and (p6 < bonferroni_alpha)
+    h6_assoc = classify_association(rho6)
+    h6_dir = "Vyšší konzumace alkoholu mírně koreluje s nižší známkou" if rho6 < 0 else "Pozitivní korelace"
+    h6_verdict = "Statisticky významná" if h6_sup else ("Marginální (p < 0.05)" if p6 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H6: Dalc+Walc -> G3",
         "Metoda testu": "Spearmanův rank test",
-        "Testová statistika / Velikost účinku": f"rho = {rho6:.4f} (slabá negativní asociace)",
-        "Přesná p-hodnota": f"{p6:.4e}",
-        "Směr vztahu": "Vyšší konzumace mírně koreluje s nižší známkou",
-        "Výsledek (Bonferroni alpha=0.0071)": "Statisticky významná" if h6_sup else "Nevýznamná"
+        "Testová statistika / Velikost účinku": f"rho = {rho6:+.4f} ({h6_assoc})",
+        "Přesná p-hodnota": f"{p6:.4e} (p < 1e-4)" if p6 < 1e-4 else f"{p6:.4f}",
+        "Směr vztahu": h6_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": h6_verdict
     })
 
     # H7: school + address vs G3 (vysvětlení univariátního vs OLS efektu)
@@ -722,21 +759,31 @@ def test_team_hypotheses(df_raw):
     t_val_addr = beta[2] / se_b[2]
     p_val_ols_addr = 2 * (1 - stats.t.cdf(np.abs(t_val_addr), df=n - p_dim))
 
-    h7_sup = p_val_ols_addr < 0.05
+    h7_dir = f"Město > Vesnice (po kontrole školy klesá beta na {beta[2]:+.2f}, část rozdílu souvisí se školou)"
+    if p_val_ols_addr < bonferroni_alpha:
+        verdict7 = f"Statisticky významná (p = {p_val_ols_addr:.4f})"
+    elif p_val_ols_addr < 0.05:
+        verdict7 = f"Signifikantní bez korekce (p = {p_val_ols_addr:.4f}), neprokázána po Bonferroni"
+    elif p_val_ols_addr < 0.10:
+        verdict7 = f"Marginální (p = {p_val_ols_addr:.4f}), neprokázána po Bonferroni"
+    else:
+        verdict7 = f"Neprokázána po kontrole školy (p = {p_val_ols_addr:.4f})"
+
     hyp_results.append({
         "Hypotéza": "H7: school + address -> G3",
         "Metoda testu": "OLS regrese s kontrolou školy",
-        "Testová statistika / Velikost účinku": f"beta_addr = {beta[2]:+.3f} (univariátně Delta = +{d_addr:.2f})",
-        "Přesná p-hodnota": f"OLS p = {p_val_ols_addr:.4f} (univariátně p < 1e-4)",
-        "Směr vztahu": "Město > Vesnice (efekt vysvětlen školou GP vs MS)",
-        "Výsledek (Bonferroni alpha=0.0071)": "Marginální (p=0.0578), neprojde po Bonferroni"
+        "Testová statistika / Velikost účinku": f"beta_addr = {beta[2]:+.3f} (univariátně Delta = {d_addr:+.2f})",
+        "Přesná p-hodnota": f"OLS p {format_p(p_val_ols_addr)} (univariátně p {format_p(t_addr.pvalue)})",
+        "Směr vztahu": h7_dir,
+        "Výsledek (Bonferroni alpha=0.0071)": verdict7
     })
 
     df_hyp = pd.DataFrame(hyp_results)
     print(df_hyp.to_string(index=False))
     print(f"\n[*] Závěr k vícenásobnému testování: Po konzervativní Bonferroniho korekci (alpha = {bonferroni_alpha:.5f})")
-    print("    zůstávají H1, H3, H4, H5 a H6 plně statisticky významné. H2 zůstává nevýznamná a u H7 je")
-    print("    rozdíl bydliště po kontrole školy vysvětlen především samotnou volbou školy.\n")
+    print("    zůstávají H1, H3, H4, H5 a H6 plně statisticky významné. H2 zůstává nevýznamná a u H7")
+    print(f"    rozdíl bydliště po kontrole školy klesá přibližně na polovinu (beta = {beta[2]:+.2f}, p = {p_val_ols_addr:.4f}),")
+    print("    což naznačuje, že část rozdílu v prospěchu souvisí s výběrem školy (bydliště a škola jsou propojené).\n")
     return df_hyp
 
 
