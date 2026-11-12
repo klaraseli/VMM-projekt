@@ -1,7 +1,7 @@
 Scénář,Úloha,Model,Mřížka parametrů,Nalezený optimální parametr,Default Skóre (5-Fold CV),Tuned Skóre (Nested 5x5 CV),Nestranné zlepšení Delta,Metrika,def_val,tuned_val
-Scénář A,Regrese,Lasso Regrese,alpha: 0.01..1.0,alpha=0.1,0.7548 +/- 0.0582,0.8481 +/- 0.0360,0.0933,R2,0.7547765208679703,0.8480842188163695
-Scénář A,Regrese,Ridge Regrese,alpha: 0.1..100.0,alpha=10.0,0.8371 +/- 0.0329,0.8375 +/- 0.0332,0.0003,R2,0.8371491054816019,0.8374985255461549
-Scénář B,Regrese,SVR (RBF),"C: 0.5..5.0, eps: 0.1..0.2","C=5.0, eps=0.2",0.2505 +/- 0.0674,0.2696 +/- 0.0730,0.0191,R2,0.25053888672049657,0.2696208447552254
-Scénář B,Regrese,Random Forest,"depth: 4..None, n: 50..100","depth=6, n=100",0.2584 +/- 0.0743,0.2487 +/- 0.0588,-0.0097,R2,0.25840097571690057,0.24870587685888595
-Scénář A,Klasifikace,SVC (Balanced),"C: 0.1..5.0, kernel: lin/rbf","C=0.1, kernel=linear",83.0 +/- 5.9 %,84.4 +/- 4.4 %,1.41,Vyvážená Acc (%),83.0396163469558,84.44537114261884
-Scénář B,Klasifikace,Random Forest (Bal),"depth: 4..8, n: 50..100","depth=4, n=100",66.9 +/- 4.5 %,74.3 +/- 7.4 %,7.35,Vyvážená Acc (%),66.90658882402,74.25938281901585
+Scénář A,Regrese,Lasso Regrese,alpha: 0.01..1.0,alpha=0.1,0.7548 +/- 0.0582,0.8480 +/- 0.0362,0.0932,R2,0.7547765208679704,0.8479811504050678
+Scénář A,Regrese,Ridge Regrese,alpha: 0.1..100.0,alpha=10.0,0.8374 +/- 0.0329,0.8376 +/- 0.0335,0.0003,R2,0.8373834278740523,0.8376464031693436
+Scénář B,Regrese,SVR (RBF),"C: 0.5..5.0, eps: 0.1..0.2","C=5.0, eps=0.2",0.2549 +/- 0.0665,0.2765 +/- 0.0721,0.0216,R2,0.2548978500647281,0.27652604785079915
+Scénář B,Regrese,Random Forest,"depth: 4..None, n: 50..100","depth=None, n=100",0.2593 +/- 0.0751,0.2477 +/- 0.0645,-0.0116,R2,0.2593001854764479,0.2476601053665573
+Scénář A,Klasifikace,SVC (Balanced),"C: 0.1..5.0, kernel: lin/rbf","C=0.1, kernel=linear",82.9 +/- 6.9 %,82.9 +/- 3.5 %,-0.0,Vyvážená Acc (%),82.9487072560467,82.94537114261885
+Scénář B,Klasifikace,Random Forest (Bal),"depth: 4..8, n: 50..100","depth=4, n=100",68.0 +/- 4.6 %,76.2 +/- 6.1 %,8.18,Vyvážená Acc (%),68.04128440366972,76.2164303586322
