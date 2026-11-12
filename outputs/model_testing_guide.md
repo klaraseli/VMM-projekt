@@ -176,7 +176,7 @@ Běžné porovnání `best_score_` z GridSearchCV na stejném CV rozdělení trp
 
 ## 6. Statistické ověření 7 týmových hypotéz
 
-Všechny proměnné v hypotézách H1 až H7 mají v surovém datasetu nulový počet chybějících hodnot. Výpočty probíhají na skutečných datech pomocí neparametrických testů a OLS modelů.
+Všechny proměnné v hypotézách H1 až H7 mají v surovém datasetu nulový počet chybějících hodnot. Výpočty probíhají na skutečných datech pomocí neparametrických testů a OLS modelů. Metodika je plně sjednocena s týmovou analýzou (větev `misus`): jednostranné testy u směrových hypotéz, Welchův t-test a standardizované velikosti účinku (Cohenovo $d$, rank-biseriální korelace $r_{\text{rb}}$) a konfidenční intervaly.
 
 ### Korelační terminologie a Bonferroniho korekce:
 Data jsou observační, nikoliv intervenční. Důsledně používáme **asociativní a korelační formulace** namísto kauzálních.
@@ -186,40 +186,71 @@ $$\alpha_{\text{adj}} = \frac{0.05}{7} \approx 0.00714$$
 
 | Hypotéza | Testovaná závislost | Statistická metoda | Testová statistika & Velikost účinku | Přesná $p$-hodnota | Výsledek (Bonferroni $\alpha=0.0071$) |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| **H1** | `studytime` $\to$ `G3` | Spearmanův rank test | $\rho = +0.2747$ (slabá asociace) | $1.06 \times 10^{-12}$ | **Statisticky významná:** Delší studium slabě pozitivně koreluje se známkou. |
-| **H2** | `romantic` $\to$ `studytime` | Mann-Whitney U test | $U = 51899.5$, $\Delta = +0.06$ h | $0.1735$ | **Neprokázána ($H_0$ platí):** Partnerský vztah nesouvisí s dobou studia. |
-| **H3** | VŠ rodiče $\to$ `G3` | Mann-Whitney U test | $U = 60521.0$, $\Delta = +1.55$ bodu | $1.82 \times 10^{-11}$ | **Statisticky významná:** Děti vysokoškoláků dosahují v průměru o 1.55 bodu více. |
-| **H4** | `higher` $\to$ vzdělání rodičů | Mann-Whitney U test | $U = 28377.0$, $\Delta = +1.47$ stupně | $4.56 \times 10^{-9}$ | **Statisticky významná:** Studenti mířící na VŠ mají vzdělanější rodiče. |
-| **H5** | `famrel` $\to$ `Dalc+Walc` | Spearmanův rank test | $\rho = -0.1134$ (slabá negativní asociace) | $0.0038$ | **Statisticky významná ($p < 0.0071$):** Lepší rodinné vztahy slabě negativně korelují s alkoholem. |
-| **H6** | `Dalc+Walc` $\to$ `G3` | Spearmanův rank test | $\rho = -0.1954$ (slabá negativní asociace) | $5.22 \times 10^{-7}$ | **Statisticky významná:** Vyšší konzumace mírně koreluje s horší známkou. |
-| **H7** | `school + address` $\to$ `G3` | OLS s kontrolou školy | $\beta_{\text{addr}} = +0.537$ (univariátně $\Delta = +1.18$) | OLS $p = 0.0578$ (univariátně $p < 1\text{e-}4$) | **Marginální (po kontrole školy klesá beta na polovinu, část rozdílu souvisí se školou; neprokázána po Bonferroni).** |
+| **H1** | `studytime` $\to$ `G3` | Spearmanův rank test (jednostranný) | $\rho = +0.2747$ (slabá pozitivní asociace) | $5.30 \times 10^{-13}$ ($< 1\text{e-}4$) | **Statisticky významná:** Delší studium slabě pozitivně koreluje se známkou. |
+| **H2** | `romantic` $\to$ `studytime` | Mann-Whitney U test (oboustranný) | $U = 51899.5$, $\Delta = +0.06$ h ($d = 0.07$, $r_{\text{rb}} = -0.059$) | $0.1735$ | **Neprokázána ($H_0$ platí):** Partnerský vztah nesouvisí s dobou studia. |
+| **H3** | VŠ rodiče $\to$ `G3` | Welchův t-test (jednostranný) & MWU | $t = 5.79$, $\Delta = +1.55$ bodu (Cohen $d = 0.49$, MWU $U = 60521.0$) | $7.28 \times 10^{-9}$ ($< 1\text{e-}4$) | **Statisticky významná:** Děti vysokoškoláků dosahují v průměru o 1.55 bodu více (střední účinek $d = 0.49$). |
+| **H4** | `higher` $\to$ vzdělání rodičů | Mann-Whitney U test (jednostranný, $\max(\text{Medu}, \text{Fedu})$) | $U = 28044.5$, $\Delta = +0.77$ stupně ($r_{\text{rb}} = -0.402$) | $7.06 \times 10^{-9}$ ($< 1\text{e-}4$) | **Statisticky významná:** Studenti mířící na VŠ mají vzdělanější rodiče (silný účinek $r_{\text{rb}} = 0.40$). |
+| **H5** | `famrel` $\to$ `Dalc+Walc` | Spearmanův rank test (jednostranný) | $\rho = -0.1134$ (slabá negativní asociace) | $0.0019$ ($< 0.0071$) | **Statisticky významná:** Lepší rodinné vztahy slabě negativně korelují s alkoholem. |
+| **H6** | `Dalc+Walc` $\to$ `G3` | Spearmanův rank test (jednostranný) | $\rho = -0.1954$ (slabá negativní asociace) | $2.61 \times 10^{-7}$ ($< 1\text{e-}4$) | **Statisticky významná:** Vyšší konzumace alkoholu mírně koreluje s horší známkou. |
+| **H7** | `school + address` $\to$ `G3` | OLS regrese s kontrolou školy (95% CI) | $\beta_{\text{addr}} = +0.537$ (95% CI $[-0.02, 1.09]$, univariátně $\Delta = +1.18$) | OLS $p = 0.0578$ (univariátně $p < 1\text{e-}4$) | **Marginální (po kontrole školy klesá beta na polovinu, část rozdílu souvisí se školou; neprokázána po Bonferroni).** |
 
-### Podrobný rozbor hypotézy H7 (Bydliště vs. Škola):
-Při univariátním testování mají studenti z města (`address = U`) statisticky významně vyšší známky než z venkova ($p < 1\text{e-}4$, rozdíl $+1.18$ bodu). Jakmile však do modelu zařadíme školu (`school = GP vs MS`, $\beta_{\text{school}} = -1.743, p < 10^{-9}$), koeficient bydliště klesne zhruba na polovinu ($\beta = +0.537$) a dosahuje pouze marginální hodnoty $p = 0.0578$ (po Bonferroniho korekci je neprůkazný).
-Nejde o nulový efekt, ale pokles parametru $\beta$ na méně než polovinu naznačuje, že **část rozdílu v prospěchu mezi městem a venkovem souvisí s výběrem školy** (bydliště a navštěvovaná škola jsou v datech vzájemně provázané – studenti z venkova častěji navštěvují školu MS, která vykazuje celkově nižší průměrné známky).
+### Podrobný rozbor hypotéz H3 a H7:
+1. **Hypotéza H3 a kontrola robustnosti pro školu:**  
+   Welchův t-test potvrzuje signifikantní rozdíl ve prospěchu studentů, jejichž alespoň jeden rodič má VŠ vzdělání ($t = 5.79, p = 7.28 \times 10^{-9}$, Cohenovo $d = 0.49$). Pro ověření, zda tento rozdíl není pouze důsledkem selekce do lepší školy, jsme provedli kontrolu robustnosti pomocí OLS regrese kontrolující proměnnou `school`. Koeficient vysokoškolského vzdělání rodičů zůstává vysoce statisticky významný:
+   $$\beta_{\text{parents}} = +1.21 \text{ bodu} \quad (95\%\text{ CI } [0.69, 1.72], \; p = 2.50 \times 10^{-6})$$
+   Vzdělání rodičů má tedy robustní a nezávislý protektivní vztah k prospěchu studenta i po očištění o efekt navštěvované školy.
+2. **Hypotéza H7 (Bydliště vs. Škola):**  
+   Při univariátním testování mají studenti z města (`address = U`) statisticky významně vyšší známky než z venkova ($p < 1\text{e-}4$, rozdíl $+1.18$ bodu). Jakmile však do modelu zařadíme školu (`school = GP vs MS`, $\beta_{\text{school}} = -1.743, p < 10^{-9}$), koeficient bydliště klesne zhruba na polovinu ($\beta = +0.537$, 95% CI $[-0.02, 1.09]$) a dosahuje pouze marginální hodnoty $p = 0.0578$ (po Bonferroniho korekci je neprůkazný).  
+   Nejde o nulový efekt, ale pokles parametru $\beta$ na méně než polovinu naznačuje, že **část rozdílu v prospěchu mezi městem a venkovem souvisí s výběrem školy** (bydliště a navštěvovaná škola jsou v datech vzájemně provázané – studenti z venkova častěji navštěvují školu MS, která vykazuje celkově nižší průměrné známky).
 
 ---
 
 ## 7. Out-of-Fold (OOF) Permutation Feature Importance
 
-Permutační důležitost je počítána na validačních foldech napříč 5-násobnou křížovou validací (StandardScaler $\to$ KNNImputer) s agregací dummy proměnných do mateřských kategorií:
+Permutační důležitost je počítána na validačních foldech napříč 5-násobnou křížovou validací (StandardScaler $\to$ KNNImputer) s agregací dummy proměnných do mateřských kategorií a výpočtem průměru a směrodatné odchylky napříč foldy:
 
-| Pořadí | Příznak | OOF Důležitost (%) | Popis a význam |
-| :---: | :--- | :---: | :--- |
-| **1.** | **`failures`** | **$59.89\,\%$** | **Drtivě nejdůležitější prediktor!** Předchozí propadnutí je nejsilnějším varovným signálem. |
-| **2.** | **`higher`** | **$10.76\,\%$** | Vnitřní ambice dosáhnout vysokoškolského vzdělání (silný protektivní faktor). |
-| **3.** | **`schoolsup`** | **$5.06\,\%$** | Mimořádná školní podpora (indikátor dříve zachycených obtíží). |
-| **4.** | **`school`** | **$4.49\,\%$** | Výběr školy (na validačních datech klesla z dřívějších 9.1 % na reálných 4.5 %). |
-| **5.** | **`Dalc`** | **$3.60\,\%$** | Konzumace alkoholu v pracovní dny (konzistentní s H6). |
-| **6.** | **`reason`** | **$2.82\,\%$** | Důvod výběru školy (reputace, preference kurzů). |
-| **7.** | **`studytime`** | **$2.71\,\%$** | Týdenní čas věnovaný samostudiu (konzistentní s H1). |
-| **8.** | **`Walc`** | **$2.64\,\%$** | Víkendová konzumace alkoholu. |
-| **9.** | **`famrel`** | **$1.36\,\%$** | Kvalita rodinných vztahů. |
-| **10.** | **`age`** | **$1.31\,\%$** | Věk studenta. |
+| Pořadí | Příznak (Česky / Kód) | OOF Důležitost (%) | Směrodatná odchylka (Std %) | Popis a význam |
+| :---: | :--- | :---: | :---: | :--- |
+| **1.** | **Předchozí propadnutí (`failures`)** | **$56.15\,\%$** | $\pm 8.29\,\%$ | **Drtivě nejdůležitější prediktor!** Předchozí propadnutí je nejsilnějším varovným signálem. |
+| **2.** | **Touha po VŠ (`higher`)** | **$9.94\,\%$** | $\pm 2.79\,\%$ | Vnitřní ambice dosáhnout vysokoškolského vzdělání (silný protektivní faktor). |
+| **3.** | **Školní podpora (`schoolsup`)** | **$4.84\,\%$** | $\pm 3.20\,\%$ | Mimořádná školní podpora (indikátor dříve zachycených obtíží). |
+| **4.** | **Výběr školy (`school`)** | **$4.30\,\%$** | $\pm 3.60\,\%$ | Navštěvovaná škola (GP vs. MS). |
+| **5.** | **Alkohol v týdnu (`Dalc`)** | **$3.23\,\%$** | $\pm 2.27\,\%$ | Konzumace alkoholu v pracovní dny (konzistentní s H6). |
+| **6.** | **Důvod volby školy (`reason`)** | **$3.05\,\%$** | $\pm 1.31\,\%$ | Důvod výběru školy (reputace, reference). |
+| **7.** | **Čas studia (`studytime`)** | **$2.79\,\%$** | $\pm 1.81\,\%$ | Týdenní čas věnovaný samostudiu (konzistentní s H1). |
+| **8.** | **Víkendový alkohol (`Walc`)** | **$2.33\,\%$** | $\pm 1.48\,\%$ | Víkendová konzumace alkoholu. |
+| **9.** | **Vztahy v rodině (`famrel`)** | **$1.56\,\%$** | $\pm 1.41\,\%$ | Kvalita rodinných vztahů. |
+| **10.** | **Věk studenta (`age`)** | **$1.41\,\%$** | $\pm 0.96\,\%$ | Věk studenta. |
 
 ---
 
-## 8. Reprodukovatelnost a softwarové prostředí
+## 8. Vektorové vizualizace a grafické výstupy
+
+Všechny grafy v adresáři `outputs/figures/` byly vygenerovány jako čistá, responzivní vektorová SVG grafika s důrazem na metodickou a prezentační čistotu:
+
+1. **`regression_comparison_scenario_A.svg` & `regression_comparison_scenario_B.svg`:**
+   - Horizontální sloupcové uspořádání zabraňující jakémukoliv oříznutí názvů modelů.
+   - Zobrazeno všech 11 modelů včetně referenční nulové linky baseline ($R^2 = 0.00$).
+   - Chybové úsečky zobrazují směrodatnou odchylku $\pm \text{std}$ napříč 5 validačními foldy.
+   - Scénář B má přizpůsobenou osu X s explicitní poznámkou v podnadpisu o měřítku.
+2. **`classification_comparison_scenario_B.svg`:**
+   - Srovnání všech 10 klasifikačních modelů podle vyvážené přesnosti (Balanced Accuracy).
+   - Vyznačena referenční červená linie náhodné baseline ($50.0\,\%$).
+   - Zahrnuty chybové úsečky $\pm \text{std}$ foldů.
+3. **`hyperparameter_tuning_regression.svg` & `hyperparameter_tuning_classification.svg`:**
+   - **Dvoupanelové uspořádání:** Panel A (Scénář A) a Panel B (Scénář B) mají zcela nezávislé osy Y přizpůsobené dynamickému rozsahu daného scénáře. Nedochází tak k matoucímu míchání průběžné predikce ($R^2 \approx 0.84$) a včasného varování ($R^2 \approx 0.26$).
+   - Přehledné srovnání Default (5-Fold CV) vs. Tuned (Nested 5x5 CV) s textovými delty zlepšení.
+4. **`feature_importance_top10_grouped.svg`:**
+   - Horizontální uspořádání s plnými, srozumitelnými českými popisky a původním kódem v závorce (např. *Předchozí propadnutí (failures)*).
+   - Osa X přesně popsána jako *Podíl na celkové permutační důležitosti (%)*.
+   - Chybové úsečky $\pm \text{std}$ zachycují stabilitu důležitosti napříč validačními foldy.
+5. **`confusion_matrix_best_classifier_scenario_B.svg`:**
+   - Přehledná matice záměn s velkorysým formátováním (žádné překryvy nadpisů ani os).
+   - Zobrazuje absolutní počty i relativní procenta s řádkovým zobrazením senzitivity (Recall pro ohrožené studenty = $71.0\,\%$) a specificity ($77.0\,\%$) a sloupcovým zobrazením PPV a NPV.
+
+---
+
+## 9. Reprodukovatelnost a softwarové prostředí
 
 Referenční číselné hodnoty uvedené v této zprávě byly generovány v následujícím prostředí:
 - **Operační systém:** Windows 11 (PowerShell 7)

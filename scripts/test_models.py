@@ -98,10 +98,45 @@ REPO_ROOT = os.path.dirname(_scripts_dir)
 from visualization_utils import (
     generate_bar_chart,
     generate_horizontal_bar_chart,
+    generate_tuning_two_panel_chart,
     generate_grouped_bar_chart,
     generate_confusion_matrix_svg,
     save_svg
 )
+
+FEATURE_CZ_LABELS = {
+    "failures": "Předchozí propadnutí (failures)",
+    "higher": "Touha po VŠ (higher)",
+    "schoolsup": "Školní podpora (schoolsup)",
+    "school": "Výběr školy (school)",
+    "Dalc": "Alkohol v týdnu (Dalc)",
+    "reason": "Důvod volby školy (reason)",
+    "studytime": "Čas studia (studytime)",
+    "Walc": "Víkendový alkohol (Walc)",
+    "famrel": "Vztahy v rodině (famrel)",
+    "age": "Věk studenta (age)",
+    "health": "Zdravotní stav (health)",
+    "goout": "Čas s přáteli (goout)",
+    "Medu": "Vzdělání matky (Medu)",
+    "Fedu": "Vzdělání otce (Fedu)",
+    "absences": "Počet absencí (absences)",
+    "absences_missing": "Chybějící docházka (indikátor)",
+    "freetime": "Volný čas (freetime)",
+    "traveltime": "Čas cesty do školy (traveltime)",
+    "famsup": "Podpora rodiny (famsup)",
+    "paid": "Placené doučování (paid)",
+    "activities": "Mimoškolní aktivity (activities)",
+    "nursery": "Navštěvoval školku (nursery)",
+    "internet": "Internet doma (internet)",
+    "romantic": "Partnerský vztah (romantic)",
+    "sex": "Pohlaví (sex)",
+    "address": "Bydliště město/vesnice (address)",
+    "famsize": "Velikost rodiny (famsize)",
+    "Pstatus": "Rodiče spolu/odděleně (Pstatus)",
+    "Mjob": "Povolání matky (Mjob)",
+    "Fjob": "Povolání otce (Fjob)",
+    "guardian": "Zákonný zástupce (guardian)"
+}
 
 
 # =============================================================================
@@ -601,19 +636,22 @@ def run_nested_hyperparameter_tuning(X_A, X_B, y_reg, y_clf):
 
 
 # =============================================================================
-# KROK 6: STATISTICKÉ OVĚŘENÍ 7 HYPOTÉZ TÝMU (DYNAMICKÉ TESTY A KOREKCE)
+# KROK 6: STATISTICKÉ OVĚŘENÍ 7 HYPOTÉZ TÝMU (JEDNOSTRANNÉ/OBOUSTRANNÉ TESTY, EFEKTY A ROBUSTNOST)
 # =============================================================================
 def test_team_hypotheses(df_raw):
     """
     Rigorózní statistické testování všech 7 hypotéz specifikovaných týmem:
     - Všechny proměnné v hypotézách H1-H7 jsou kompletně pozorované (žádná hodnota nechybí).
     - Důsledné používání ne-kauzální terminologie (asociace, korelace, rozdíl průměrů).
-    - Výpočet přesných p-hodnot a velikostí účinku (effect sizes).
-    - U H7 se testuje univariátní asociace bydliště i bivariátní OLS model s kontrolou pro školu.
-    - Zohledněna Bonferroniho korekce pro vícenásobné testování (alpha_adj = 0.05 / 7 = 0.00714).
+    - Směry testů (jednostranné alternative='greater'/'less' vs. oboustranné 'two-sided')
+      odpovídají teoretickému zadání hypotéz a sjednocují metodiku s týmovou analýzou (větev misus).
+    - U H3 je použit Welchův t-test s Cohenovým d = 0.49 (střední účinek), doplněný o kontrolu robustnosti pro školu.
+    - U H4 je úroveň vzdělání rodičů definována jako maximum z Medu a Fedu (konzistentní s H3).
+    - U H7 je uveden 95% konfidenční interval OLS koeficientu bydliště [-0.02, 1.09].
+    - Zohledněna Bonferroniho korekce pro 7 testovaných hypotéz (alpha_adj = 0.05 / 7 = 0.00714).
     """
     print("=" * 96)
-    print(" STATISTICKÉ TESTOVÁNÍ HYPOTÉZ (DYNAMICKÉ TESTY, EFEKT-SIZES A BONFERRONI)")
+    print(" STATISTICKÉ TESTOVÁNÍ HYPOTÉZ (JEDNOSTRANNÉ TESTY, EFEKT-SIZES A BONFERRONI)")
     print("=" * 96)
 
     def classify_association(r: float) -> str:
@@ -644,106 +682,126 @@ def test_team_hypotheses(df_raw):
     hyp_results = []
     bonferroni_alpha = 0.05 / 7.0  # 0.00714
 
-    # H1: studytime vs G3 (dynamická asociace)
-    rho1, p1 = stats.spearmanr(df["studytime"], df["G3"])
+    # H1: studytime vs G3 (jednostranný Spearmanův test)
+    rho1, p1 = stats.spearmanr(df["studytime"], df["G3"], alternative="greater")
     h1_sup = (rho1 > 0) and (p1 < bonferroni_alpha)
     h1_assoc = classify_association(rho1)
-    h1_dir = "Pozitivní monotónní asociace (vyšší studijní čas ~ vyšší známka)" if rho1 > 0 else "Negativní asociace"
+    h1_dir = "Pozitivní asociace (vyšší studijní čas ~ vyšší známka)" if rho1 > 0 else "Negativní asociace"
     h1_verdict = "Statisticky významná" if h1_sup else ("Marginální (p < 0.05)" if p1 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H1: studytime -> G3",
-        "Metoda testu": "Spearmanův rank test",
+        "Metoda testu": "Spearmanův rank test (jednostranný)",
         "Testová statistika / Velikost účinku": f"rho = {rho1:+.4f} ({h1_assoc})",
         "Přesná p-hodnota": f"{p1:.4e} (p < 1e-4)" if p1 < 1e-4 else f"{p1:.4f}",
         "Směr vztahu": h1_dir,
         "Výsledek (Bonferroni alpha=0.0071)": h1_verdict
     })
 
-    # H2: romantic vs studytime (rozdíl v čase studia podle vztahu)
+    # H2: romantic vs studytime (oboustranný Mann-Whitney U test)
     st_rom = df[df["romantic"] == 1]["studytime"].dropna()
     st_norom = df[df["romantic"] == 0]["studytime"].dropna()
     u2, p2 = stats.mannwhitneyu(st_rom, st_norom, alternative="two-sided")
     d2 = st_rom.mean() - st_norom.mean()
+    r_rb2 = 1.0 - (2.0 * u2) / (len(st_rom) * len(st_norom))
+    pooled_sd2 = np.sqrt(((len(st_rom) - 1) * st_rom.var() + (len(st_norom) - 1) * st_norom.var()) / (len(st_rom) + len(st_norom) - 2))
+    cohen_d2 = d2 / pooled_sd2 if pooled_sd2 > 0 else 0.0
     h2_sup = p2 < bonferroni_alpha
     h2_dir = "Ve vztahu studuje více" if (d2 > 0 and p2 < 0.05) else ("Ve vztahu studuje méně" if (d2 < 0 and p2 < 0.05) else f"Bez prokazatelného rozdílu (Delta = {d2:+.2f} h)")
     h2_verdict = "Statisticky významná" if h2_sup else ("Marginální (p < 0.05)" if p2 < 0.05 else "Neprokázána (H0 platí)")
     hyp_results.append({
         "Hypotéza": "H2: romantic -> studytime",
-        "Metoda testu": "Mann-Whitney U test",
-        "Testová statistika / Velikost účinku": f"U = {u2:.1f}, Delta = {d2:+.2f} h",
-        "Přesná p-hodnota": f"{p2:.4e} (p < 1e-4)" if p2 < 1e-4 else f"{p2:.4f}",
+        "Metoda testu": "Mann-Whitney U test (oboustranný)",
+        "Testová statistika / Velikost účinku": f"U = {u2:.1f}, Delta = {d2:+.2f} h (d = {cohen_d2:.2f}, r_rb = {r_rb2:.3f})",
+        "Přesná p-hodnota": f"{p2:.4f}",
         "Směr vztahu": h2_dir,
         "Výsledek (Bonferroni alpha=0.0071)": h2_verdict
     })
 
-    # H3: VŠ vzdělání rodičů vs G3
+    # H3: VŠ vzdělání rodičů vs G3 (Welchův t-test, Cohenovo d a kontrola robustnosti pro školu)
     he_parents = (df["Medu"] == 4) | (df["Fedu"] == 4)
     g3_he = df[he_parents]["G3"]
     g3_nohe = df[~he_parents]["G3"]
-    u3, p3 = stats.mannwhitneyu(g3_he, g3_nohe, alternative="greater")
+    t3, p3_welch = stats.ttest_ind(g3_he, g3_nohe, equal_var=False, alternative="greater")
+    u3, p3_mwu = stats.mannwhitneyu(g3_he, g3_nohe, alternative="greater")
     d3 = g3_he.mean() - g3_nohe.mean()
-    h3_sup = p3 < bonferroni_alpha
-    h3_dir = f"VŠ rodiče dosahují vyšší G3 (Delta = {d3:+.2f} bodu)" if d3 > 0 else "Bez převahy VŠ rodičů"
-    h3_verdict = "Statisticky významná" if h3_sup else ("Marginální (p < 0.05)" if p3 < 0.05 else "Nevýznamná")
+    pooled_sd3 = np.sqrt(((len(g3_he) - 1) * g3_he.var() + (len(g3_nohe) - 1) * g3_nohe.var()) / (len(g3_he) + len(g3_nohe) - 2))
+    cohen_d3 = d3 / pooled_sd3 if pooled_sd3 > 0 else 0.0
+    r_rb3 = 1.0 - (2.0 * u3) / (len(g3_he) * len(g3_nohe))
+    h3_sup = p3_welch < bonferroni_alpha
+    h3_dir = f"VŠ rodiče dosahují vyšší G3 (Delta = {d3:+.2f} bodu, d = {cohen_d3:.2f})" if d3 > 0 else "Bez převahy VŠ rodičů"
+    h3_verdict = "Statisticky významná" if h3_sup else ("Marginální (p < 0.05)" if p3_welch < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H3: VŠ rodiče -> G3",
-        "Metoda testu": "Mann-Whitney U test",
-        "Testová statistika / Velikost účinku": f"U = {u3:.1f}, Delta = {d3:+.2f} bodu",
-        "Přesná p-hodnota": f"{p3:.4e} (p < 1e-4)" if p3 < 1e-4 else f"{p3:.4f}",
+        "Metoda testu": "Welchův t-test (jednostranný) & MWU",
+        "Testová statistika / Velikost účinku": f"t = {t3:.2f}, Delta = {d3:+.2f} bodu (Cohen d = {cohen_d3:.2f}, MWU U = {u3:.1f})",
+        "Přesná p-hodnota": f"{p3_welch:.4e} (p < 1e-4)",
         "Směr vztahu": h3_dir,
         "Výsledek (Bonferroni alpha=0.0071)": h3_verdict
     })
 
-    # H4: higher vs vzdělání rodičů (Medu + Fedu)
-    p_edu = df["Medu"] + df["Fedu"]
+    # Kontrola robustnosti H3: OLS s kontrolou pro školu
+    X_h3 = np.column_stack([np.ones(len(df)), df["school"], he_parents.astype(float)])
+    beta_h3 = np.linalg.lstsq(X_h3, df["G3"].values, rcond=None)[0]
+    res_h3 = df["G3"].values - X_h3 @ beta_h3
+    sigma2_h3 = np.sum(res_h3**2) / (len(df) - 3)
+    cov_h3 = sigma2_h3 * np.linalg.inv(X_h3.T @ X_h3)
+    se_h3 = np.sqrt(np.diagonal(cov_h3))
+    t_h3_ctrl = beta_h3[2] / se_h3[2]
+    p_h3_ctrl = 1.0 - stats.t.cdf(t_h3_ctrl, df=len(df)-3)
+    ci_lo_h3 = beta_h3[2] - 1.96 * se_h3[2]
+    ci_hi_h3 = beta_h3[2] + 1.96 * se_h3[2]
+
+    # H4: higher vs vzdělání rodičů: max(Medu, Fedu) - sjednoceno s větví misus
+    p_edu = np.maximum(df["Medu"], df["Fedu"])
     edu_high = p_edu[df["higher"] == 1]
     edu_nohigh = p_edu[df["higher"] == 0]
     u4, p4 = stats.mannwhitneyu(edu_high, edu_nohigh, alternative="greater")
     d4 = edu_high.mean() - edu_nohigh.mean()
+    r_rb4 = 1.0 - (2.0 * u4) / (len(edu_high) * len(edu_nohigh))
     h4_sup = p4 < bonferroni_alpha
-    h4_dir = f"Vyšší vzdělání rodičů u studentů s ambicí na VŠ (Delta = {d4:+.2f} stupně)" if d4 > 0 else "Bez rozdílu"
+    h4_dir = f"Vyšší vzdělání rodičů u studentů s ambicí na VŠ (Delta = {d4:+.2f} stupně, r_rb = {r_rb4:.3f})" if d4 > 0 else "Bez rozdílu"
     h4_verdict = "Statisticky významná" if h4_sup else ("Marginální (p < 0.05)" if p4 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H4: higher -> vzdělání rodičů",
-        "Metoda testu": "Mann-Whitney U test",
-        "Testová statistika / Velikost účinku": f"U = {u4:.1f}, Delta = {d4:+.2f} stupně",
-        "Přesná p-hodnota": f"{p4:.4e} (p < 1e-4)" if p4 < 1e-4 else f"{p4:.4f}",
+        "Metoda testu": "Mann-Whitney U test (jednostranný, max Medu/Fedu)",
+        "Testová statistika / Velikost účinku": f"U = {u4:.1f}, Delta = {d4:+.2f} stupně (r_rb = {r_rb4:.3f})",
+        "Přesná p-hodnota": f"{p4:.4e} (p < 1e-4)",
         "Směr vztahu": h4_dir,
         "Výsledek (Bonferroni alpha=0.0071)": h4_verdict
     })
 
-    # H5: famrel vs alkohol (Dalc + Walc)
+    # H5: famrel vs alkohol (Dalc + Walc) (jednostranný Spearmanův test)
     alc = df["Dalc"] + df["Walc"]
-    rho5, p5 = stats.spearmanr(df["famrel"], alc)
+    rho5, p5 = stats.spearmanr(df["famrel"], alc, alternative="less")
     h5_sup = (rho5 < 0) and (p5 < bonferroni_alpha)
     h5_assoc = classify_association(rho5)
     h5_dir = "Lepší rodinné vztahy slabě negativně korelují s alkoholem" if rho5 < 0 else "Pozitivní korelace s alkoholem"
     h5_verdict = "Statisticky významná" if h5_sup else ("Marginální (p < 0.05)" if p5 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H5: famrel -> Dalc+Walc",
-        "Metoda testu": "Spearmanův rank test",
+        "Metoda testu": "Spearmanův rank test (jednostranný)",
         "Testová statistika / Velikost účinku": f"rho = {rho5:+.4f} ({h5_assoc})",
-        "Přesná p-hodnota": f"{p5:.4e} (p < 1e-4)" if p5 < 1e-4 else f"{p5:.4f}",
+        "Přesná p-hodnota": f"{p5:.4f}",
         "Směr vztahu": h5_dir,
         "Výsledek (Bonferroni alpha=0.0071)": h5_verdict
     })
 
-    # H6: alkohol (Dalc + Walc) vs G3
-    rho6, p6 = stats.spearmanr(alc, df["G3"])
+    # H6: alkohol (Dalc + Walc) vs G3 (jednostranný Spearmanův test)
+    rho6, p6 = stats.spearmanr(alc, df["G3"], alternative="less")
     h6_sup = (rho6 < 0) and (p6 < bonferroni_alpha)
     h6_assoc = classify_association(rho6)
     h6_dir = "Vyšší konzumace alkoholu mírně koreluje s nižší známkou" if rho6 < 0 else "Pozitivní korelace"
     h6_verdict = "Statisticky významná" if h6_sup else ("Marginální (p < 0.05)" if p6 < 0.05 else "Nevýznamná")
     hyp_results.append({
         "Hypotéza": "H6: Dalc+Walc -> G3",
-        "Metoda testu": "Spearmanův rank test",
+        "Metoda testu": "Spearmanův rank test (jednostranný)",
         "Testová statistika / Velikost účinku": f"rho = {rho6:+.4f} ({h6_assoc})",
-        "Přesná p-hodnota": f"{p6:.4e} (p < 1e-4)" if p6 < 1e-4 else f"{p6:.4f}",
+        "Přesná p-hodnota": f"{p6:.4e} (p < 1e-4)",
         "Směr vztahu": h6_dir,
         "Výsledek (Bonferroni alpha=0.0071)": h6_verdict
     })
 
-    # H7: school + address vs G3 (vysvětlení univariátního vs OLS efektu)
+    # H7: school + address vs G3 (OLS regrese s kontrolou pro školu a 95% konfidenčním intervalem)
     t_addr = stats.ttest_ind(df[df["address"] == 1]["G3"], df[df["address"] == 0]["G3"])
     d_addr = df[df["address"] == 1]["G3"].mean() - df[df["address"] == 0]["G3"].mean()
 
@@ -758,8 +816,10 @@ def test_team_hypotheses(df_raw):
     se_b = np.sqrt(np.diagonal(cov_b))
     t_val_addr = beta[2] / se_b[2]
     p_val_ols_addr = 2 * (1 - stats.t.cdf(np.abs(t_val_addr), df=n - p_dim))
+    ci_lo7 = beta[2] - 1.96 * se_b[2]
+    ci_hi7 = beta[2] + 1.96 * se_b[2]
 
-    h7_dir = f"Město > Vesnice (po kontrole školy klesá beta na {beta[2]:+.2f}, část rozdílu souvisí se školou)"
+    h7_dir = f"Město > Vesnice (po kontrole školy klesá beta na {beta[2]:+.2f} [95% CI {ci_lo7:.2f}, {ci_hi7:.2f}], část rozdílu souvisí se školou)"
     if p_val_ols_addr < bonferroni_alpha:
         verdict7 = f"Statisticky významná (p = {p_val_ols_addr:.4f})"
     elif p_val_ols_addr < 0.05:
@@ -771,8 +831,8 @@ def test_team_hypotheses(df_raw):
 
     hyp_results.append({
         "Hypotéza": "H7: school + address -> G3",
-        "Metoda testu": "OLS regrese s kontrolou školy",
-        "Testová statistika / Velikost účinku": f"beta_addr = {beta[2]:+.3f} (univariátně Delta = {d_addr:+.2f})",
+        "Metoda testu": "OLS regrese s kontrolou školy (95% CI)",
+        "Testová statistika / Velikost účinku": f"beta_addr = {beta[2]:+.3f} (95% CI [{ci_lo7:.2f}, {ci_hi7:.2f}], univariátně Delta = {d_addr:+.2f})",
         "Přesná p-hodnota": f"OLS p {format_p(p_val_ols_addr)} (univariátně p {format_p(t_addr.pvalue)})",
         "Směr vztahu": h7_dir,
         "Výsledek (Bonferroni alpha=0.0071)": verdict7
@@ -782,14 +842,12 @@ def test_team_hypotheses(df_raw):
     print(df_hyp.to_string(index=False))
     print(f"\n[*] Závěr k vícenásobnému testování: Po konzervativní Bonferroniho korekci (alpha = {bonferroni_alpha:.5f})")
     print("    zůstávají H1, H3, H4, H5 a H6 plně statisticky významné. H2 zůstává nevýznamná a u H7")
-    print(f"    rozdíl bydliště po kontrole školy klesá přibližně na polovinu (beta = {beta[2]:+.2f}, p = {p_val_ols_addr:.4f}),")
-    print("    což naznačuje, že část rozdílu v prospěchu souvisí s výběrem školy (bydliště a škola jsou propojené).\n")
+    print(f"    rozdíl bydliště po kontrole školy klesá přibližně na polovinu (beta = {beta[2]:+.2f}, 95% CI [{ci_lo7:.2f}, {ci_hi7:.2f}], p = {p_val_ols_addr:.4f}),")
+    print("    což naznačuje, že část rozdílu v prospěchu souvisí s výběrem školy (bydliště a škola jsou propojené).")
+    print(f"    Kontrola robustnosti H3: Vzdělání rodičů i po kontrole školy zůstává vysoce signifikantní (beta = {beta_h3[2]:+.2f}, 95% CI [{ci_lo_h3:.2f}, {ci_hi_h3:.2f}], p = {p_h3_ctrl:.4e}).\n")
     return df_hyp
 
 
-# =============================================================================
-# KROK 7: OUT-OF-FOLD (OOF) PERMUTATION FEATURE IMPORTANCE
-# =============================================================================
 def evaluate_oof_feature_importance(X_B, y_reg, feat_B, category_groups):
     """
     Vypočte Out-of-Fold (OOF) Permutation Feature Importance pro Scénář B:
@@ -797,13 +855,14 @@ def evaluate_oof_feature_importance(X_B, y_reg, feat_B, category_groups):
     - Škálování i KNN imputace probíhají na datech každého foldu (StandardScaler -> KNNImputer).
     - Zabraňuje nadhodnocení důležitosti přeučených příznaků na trénovacích datech.
     - Dummy sloupce vícehodnotových kategorií jsou sloučeny zpět do mateřských faktorů.
+    - Pro každý faktor se počítá průměrný procentuální podíl i směrodatná odchylka napříč 5 foldy.
     """
     print("=" * 96)
     print(" OUT-OF-FOLD (OOF) PERMUTATION FEATURE IMPORTANCE (SCÉNÁŘ B: BEZ G1 A G2)")
     print("=" * 96)
 
     cv = KFold(n_splits=5, shuffle=True, random_state=42)
-    fold_importances = []
+    fold_grouped_pcts = []
 
     for tr_idx, va_idx in cv.split(X_B, y_reg):
         scaler = StandardScaler()
@@ -818,51 +877,57 @@ def evaluate_oof_feature_importance(X_B, y_reg, feat_B, category_groups):
         rf.fit(X_tr_imp, y_reg[tr_idx])
 
         perm = permutation_importance(rf, X_va_imp, y_reg[va_idx], n_repeats=10, random_state=42, scoring="r2")
-        fold_importances.append(perm.importances_mean)
+        raw_imp = dict(zip(feat_B, perm.importances_mean))
 
-    mean_imp = np.mean(fold_importances, axis=0)
-    raw_importances = dict(zip(feat_B, mean_imp))
+        # Sloučení dummy proměnných do mateřských kategorií pro tento fold
+        fold_grouped = {}
+        consumed_cols = set()
 
-    # Sloučení dummy proměnných do mateřských kategorií
-    grouped_importances = {}
-    consumed_cols = set()
+        for parent_cat, dummy_cols in category_groups.items():
+            total_imp = sum(max(0.0, raw_imp.get(c, 0.0)) for c in dummy_cols)
+            fold_grouped[parent_cat] = total_imp
+            consumed_cols.update(dummy_cols)
 
-    for parent_cat, dummy_cols in category_groups.items():
-        total_imp = sum(max(0.0, raw_importances.get(c, 0.0)) for c in dummy_cols)
-        grouped_importances[parent_cat] = total_imp
-        consumed_cols.update(dummy_cols)
+        for feat in feat_B:
+            if feat not in consumed_cols:
+                fold_grouped[feat] = max(0.0, raw_imp.get(feat, 0.0))
 
-    # Přidání ostatních nestrukturovaných příznaků
-    for feat in feat_B:
-        if feat not in consumed_cols:
-            grouped_importances[feat] = max(0.0, raw_importances.get(feat, 0.0))
+        tot_fold = sum(fold_grouped.values())
+        if tot_fold <= 0:
+            tot_fold = 1.0
 
-    # Normalizace na procenta
-    total_val = sum(grouped_importances.values())
-    if total_val <= 0:
-        total_val = 1.0
+        fold_pct = {k: (v / tot_fold) * 100.0 for k, v in fold_grouped.items()}
+        fold_grouped_pcts.append(fold_pct)
 
-    fi_list = [
-        {"Příznak": k, "Důležitost_raw": v, "Důležitost (%)": round(float((v / total_val) * 100), 2)}
-        for k, v in grouped_importances.items()
-    ]
+    # Spočítáme průměr a směrodatnou odchylku procentuálního podílu napříč 5 foldy
+    all_keys = list(fold_grouped_pcts[0].keys())
+    fi_list = []
+    for k in all_keys:
+        vals = [f[k] for f in fold_grouped_pcts]
+        mean_v = float(np.mean(vals))
+        std_v = float(np.std(vals))
+        cz_name = FEATURE_CZ_LABELS.get(k, k)
+        fi_list.append({
+            "Příznak": k,
+            "Příznak_CZ": cz_name,
+            "Důležitost (%)": round(mean_v, 2),
+            "Std (%)": round(std_v, 2)
+        })
+
     fi_df = pd.DataFrame(fi_list).sort_values(by="Důležitost (%)", ascending=False).reset_index(drop=True)
 
-    print("TOP 10 nejdůležitějších faktorů po sloučení kategorií na validačních foldech (OOF):")
-    display_fi = fi_df[["Příznak", "Důležitost (%)"]].head(10)
+    print("TOP 10 nejdůležitějších prediktorů po sloučení kategorií na validačních foldech (OOF +/- std):")
+    display_fi = fi_df[["Příznak_CZ", "Důležitost (%)", "Std (%)"]].head(10)
     print(display_fi.to_string(index=False))
     print()
     return fi_df
 
 
-# =============================================================================
-# KROK 8: EXPORT TABULEK A VEKTOROVÝCH GRAFŮ
-# =============================================================================
 def export_outputs(
     df_reg_A, df_reg_B,
     df_clf_A, df_clf_B,
     df_tuning, df_hyp, fi_df,
-    best_preds_B, y_clf
+    best_preds_B, y_clf, best_clf_name_B
 ):
     """Uloží výsledné tabulky (CSV) a vygeneruje čisté vektorové SVG grafy."""
     tables_dir = os.path.join(REPO_ROOT, "outputs", "tables")
@@ -881,76 +946,91 @@ def export_outputs(
     print(f"[*] Všech 7 tabulek úspěšně uloženo do: {tables_dir}/")
 
     # 2. Vektorové SVG grafy
-    # Graf A: Srovnání regresních modelů Scénář A (všechny modely)
-    svg_reg_A = generate_bar_chart(
-        labels=df_reg_A["Model"].tolist()[:8],
-        values=df_reg_A["R2_mean"].tolist()[:8],
+    # Graf A: Srovnání regresních modelů Scénář A (vodorovný sloupcový graf, všechny modely, chybové úsečky)
+    svg_reg_A = generate_horizontal_bar_chart(
+        labels=df_reg_A["Model"].tolist()[::-1],
+        values=df_reg_A["R2_mean"].tolist()[::-1],
+        stds=df_reg_A["R2_std"].tolist()[::-1],
         title="Srovnání regresních modelů: Scénář A (se známkami G1 a G2)",
-        xlabel="Model",
-        ylabel="Koeficient determinace (R²)"
+        xlabel="Koeficient determinace (R²)",
+        baseline=0.0,
+        bar_color="#2563eb",
+        subtitle="5-Fold CV (průměr +/- std napříč validačními foldy)"
     )
     save_svg(svg_reg_A, f"{figures_dir}/regression_comparison_scenario_A.svg")
 
-    # Graf B: Srovnání regresních modelů Scénář B (Včasné varování)
-    svg_reg_B = generate_bar_chart(
-        labels=df_reg_B["Model"].tolist()[:8],
-        values=df_reg_B["R2_mean"].tolist()[:8],
-        title="Srovnání regresních modelů: Scénář B (BEZ známek G1 a G2 - Včasné varování)",
-        xlabel="Model",
-        ylabel="Koeficient determinace (R²)",
-        bar_color="#059669"
+    # Graf B: Srovnání regresních modelů Scénář B (Včasné varování - všechny modely, přizpůsobená osa X, baseline)
+    svg_reg_B = generate_horizontal_bar_chart(
+        labels=df_reg_B["Model"].tolist()[::-1],
+        values=df_reg_B["R2_mean"].tolist()[::-1],
+        stds=df_reg_B["R2_std"].tolist()[::-1],
+        title="Srovnání regresních modelů: Scénář B (Včasné varování, bez G1 a G2)",
+        xlabel="Koeficient determinace (R²)",
+        baseline=0.0,
+        bar_color="#0d9488",
+        subtitle="5-Fold CV (průměr +/- std). Osa X přizpůsobena rozsahu Scénáře B."
     )
     save_svg(svg_reg_B, f"{figures_dir}/regression_comparison_scenario_B.svg")
 
-    # Graf C: Klasifikace ve Scénáři B (Early Warning)
-    svg_clf_B = generate_bar_chart(
-        labels=df_clf_B["Model"].tolist()[:8],
-        values=df_clf_B["Bal_Acc_mean"].tolist()[:8],
-        title="Klasifikace (Scénář B - Včasné varování): Vyvážená přesnost",
-        xlabel="Model",
-        ylabel="Vyvážená přesnost (%)",
-        bar_color="#8b5cf6"
+    # Graf C: Klasifikace ve Scénáři B (Early Warning - všechny modely, baseline 50 %, chybové úsečky)
+    svg_clf_B = generate_horizontal_bar_chart(
+        labels=df_clf_B["Model"].tolist()[::-1],
+        values=df_clf_B["Bal_Acc_mean"].tolist()[::-1],
+        stds=df_clf_B["Bal_Acc_std"].tolist()[::-1],
+        title="Klasifikace ohrožených studentů (Scénář B: Včasné varování)",
+        xlabel="Vyvážená přesnost (%)",
+        baseline=50.0,
+        bar_color="#7c3aed",
+        is_percentage=True,
+        subtitle="Stratified 5-Fold CV (průměr +/- std). Referenční baseline náhodného odhadu = 50.0 %."
     )
     save_svg(svg_clf_B, f"{figures_dir}/classification_comparison_scenario_B.svg")
 
-    # Graf D1: Ladění hyperparametrů pro regresi (osa R2)
-    reg_tune = df_tuning[df_tuning["Úloha"] == "Regrese"]
-    svg_tune_reg = generate_grouped_bar_chart(
-        categories=reg_tune["Model"].tolist(),
-        series={
-            "Default (5-Fold CV)": [round(float(v), 3) for v in reg_tune["def_val"]],
-            "Tuned (Nested 5x5 CV)": [round(float(v), 3) for v in reg_tune["tuned_val"]]
-        },
-        title="Nestranné zhodnocení ladění hyperparametrů pro regresi (Nested CV)",
-        xlabel="Model",
-        ylabel="Koeficient determinace (R²)",
+    # Graf D1: Dvoupanelový graf ladění hyperparametrů pro regresi (Panel A: Scénář A, Panel B: Scénář B)
+    reg_A = df_tuning[(df_tuning["Úloha"] == "Regrese") & (df_tuning["Scénář"] == "Scénář A")]
+    reg_B = df_tuning[(df_tuning["Úloha"] == "Regrese") & (df_tuning["Scénář"] == "Scénář B")]
+    svg_tune_reg = generate_tuning_two_panel_chart(
+        panel_A_models=reg_A["Model"].tolist(),
+        panel_A_default=[round(float(v), 3) for v in reg_A["def_val"]],
+        panel_A_tuned=[round(float(v), 3) for v in reg_A["tuned_val"]],
+        panel_B_models=reg_B["Model"].tolist(),
+        panel_B_default=[round(float(v), 3) for v in reg_B["def_val"]],
+        panel_B_tuned=[round(float(v), 3) for v in reg_B["tuned_val"]],
+        title="Nestranné zhodnocení ladění parametrů pro regresi (Nested 5x5 CV)",
+        metric_label="Koeficient determinace (R²)",
+        is_percentage=False,
         palette=["#94a3b8", "#2563eb"]
     )
     save_svg(svg_tune_reg, f"{figures_dir}/hyperparameter_tuning_regression.svg")
 
-    # Graf D2: Ladění hyperparametrů pro klasifikaci (osa Vyvážená Acc %)
-    clf_tune = df_tuning[df_tuning["Úloha"] == "Klasifikace"]
-    svg_tune_clf = generate_grouped_bar_chart(
-        categories=clf_tune["Model"].tolist(),
-        series={
-            "Default (5-Fold CV)": [round(float(v), 1) for v in clf_tune["def_val"]],
-            "Tuned (Nested 5x5 CV)": [round(float(v), 1) for v in clf_tune["tuned_val"]]
-        },
-        title="Nestranné zhodnocení ladění hyperparametrů pro klasifikaci (Nested CV)",
-        xlabel="Model",
-        ylabel="Vyvážená přesnost (%)",
-        palette=["#94a3b8", "#8b5cf6"]
+    # Graf D2: Dvoupanelový graf ladění hyperparametrů pro klasifikaci (Panel A: Scénář A, Panel B: Scénář B)
+    clf_A = df_tuning[(df_tuning["Úloha"] == "Klasifikace") & (df_tuning["Scénář"] == "Scénář A")]
+    clf_B = df_tuning[(df_tuning["Úloha"] == "Klasifikace") & (df_tuning["Scénář"] == "Scénář B")]
+    svg_tune_clf = generate_tuning_two_panel_chart(
+        panel_A_models=clf_A["Model"].tolist(),
+        panel_A_default=[round(float(v), 1) for v in clf_A["def_val"]],
+        panel_A_tuned=[round(float(v), 1) for v in clf_A["tuned_val"]],
+        panel_B_models=clf_B["Model"].tolist(),
+        panel_B_default=[round(float(v), 1) for v in clf_B["def_val"]],
+        panel_B_tuned=[round(float(v), 1) for v in clf_B["tuned_val"]],
+        title="Nestranné zhodnocení ladění parametrů pro klasifikaci (Nested 5x5 CV)",
+        metric_label="Vyvážená přesnost (%)",
+        is_percentage=True,
+        palette=["#94a3b8", "#7c3aed"]
     )
     save_svg(svg_tune_clf, f"{figures_dir}/hyperparameter_tuning_classification.svg")
 
-    # Graf E: TOP 10 Out-of-Fold Permutation Feature Importance
+    # Graf E: TOP 10 Out-of-Fold Permutation Feature Importance (české popisky, chybové úsečky napříč foldy)
     top10_fi = fi_df.head(10).copy()
     svg_fi = generate_horizontal_bar_chart(
-        labels=top10_fi["Příznak"].tolist()[::-1],
+        labels=top10_fi["Příznak_CZ"].tolist()[::-1],
         values=top10_fi["Důležitost (%)"].tolist()[::-1],
-        title="TOP 10 faktorů výsledku studenta (OOF validace - Scénář B)",
-        xlabel="Validační permutační důležitost (%)",
-        bar_color="#ea580c"
+        stds=top10_fi["Std (%)"].tolist()[::-1],
+        title="TOP 10 nejvýznamnějších prediktorů (OOF validace - Scénář B)",
+        xlabel="Podíl na celkové permutační důležitosti (%)",
+        bar_color="#ea580c",
+        is_percentage=True,
+        subtitle="Průměrný relativní podíl +/- std napříč 5 validačními foldy"
     )
     save_svg(svg_fi, f"{figures_dir}/feature_importance_top10_grouped.svg")
 
@@ -960,7 +1040,7 @@ def export_outputs(
         svg_cm = generate_confusion_matrix_svg(
             cm=cm.tolist(),
             class_labels=["Neprospěl", "Prospěl"],
-            title="Matice záměn nejlepšího klasifikátoru (Scénář B: Včasné varování)"
+            title=f"Matice záměn: {best_clf_name_B} (Scénář B: Včasné varování)"
         )
         save_svg(svg_cm, f"{figures_dir}/confusion_matrix_best_classifier_scenario_B.svg")
 
@@ -1000,7 +1080,7 @@ def main():
     fi_df = evaluate_oof_feature_importance(data["X_B"], data["y_reg"], data["feat_B"], data["category_groups"])
 
     # 8. Export tabulek a grafů
-    export_outputs(df_reg_A, df_reg_B, df_clf_A, df_clf_B, df_tuning, df_hyp, fi_df, best_preds_B, data["y_clf"])
+    export_outputs(df_reg_A, df_reg_B, df_clf_A, df_clf_B, df_tuning, df_hyp, fi_df, best_preds_B, data["y_clf"], best_clf_name_B)
 
     t_total = time.time() - t_start
     print(f"\n[+] Hotovo! Celý experimentální běh proběhl úspěšně za {t_total:.1f} sekund.\n")

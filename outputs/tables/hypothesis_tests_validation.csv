@@ -1,8 +1,8 @@
 Hypotéza,Metoda testu,Testová statistika / Velikost účinku,Přesná p-hodnota,Směr vztahu,Výsledek (Bonferroni alpha=0.0071)
-H1: studytime -> G3,Spearmanův rank test,rho = +0.2747 (slabá pozitivní asociace),1.0606e-12 (p < 1e-4),Pozitivní monotónní asociace (vyšší studijní čas ~ vyšší známka),Statisticky významná
-H2: romantic -> studytime,Mann-Whitney U test,"U = 51899.5, Delta = +0.06 h",0.1735,Bez prokazatelného rozdílu (Delta = +0.06 h),Neprokázána (H0 platí)
-H3: VŠ rodiče -> G3,Mann-Whitney U test,"U = 60521.0, Delta = +1.55 bodu",1.8243e-11 (p < 1e-4),VŠ rodiče dosahují vyšší G3 (Delta = +1.55 bodu),Statisticky významná
-H4: higher -> vzdělání rodičů,Mann-Whitney U test,"U = 28377.0, Delta = +1.47 stupně",4.5555e-09 (p < 1e-4),Vyšší vzdělání rodičů u studentů s ambicí na VŠ (Delta = +1.47 stupně),Statisticky významná
-H5: famrel -> Dalc+Walc,Spearmanův rank test,rho = -0.1134 (slabá negativní asociace),0.0038,Lepší rodinné vztahy slabě negativně korelují s alkoholem,Statisticky významná
-H6: Dalc+Walc -> G3,Spearmanův rank test,rho = -0.1954 (slabá negativní asociace),5.2231e-07 (p < 1e-4),Vyšší konzumace alkoholu mírně koreluje s nižší známkou,Statisticky významná
-H7: school + address -> G3,OLS regrese s kontrolou školy,beta_addr = +0.537 (univariátně Delta = +1.18),OLS p = 0.0578 (univariátně p < 1e-4),"Město > Vesnice (po kontrole školy klesá beta na +0.54, část rozdílu souvisí se školou)","Marginální (p = 0.0578), neprokázána po Bonferroni"
+H1: studytime -> G3,Spearmanův rank test (jednostranný),rho = +0.2747 (slabá pozitivní asociace),5.3031e-13 (p < 1e-4),Pozitivní asociace (vyšší studijní čas ~ vyšší známka),Statisticky významná
+H2: romantic -> studytime,Mann-Whitney U test (oboustranný),"U = 51899.5, Delta = +0.06 h (d = 0.07, r_rb = -0.059)",0.1735,Bez prokazatelného rozdílu (Delta = +0.06 h),Neprokázána (H0 platí)
+H3: VŠ rodiče -> G3,Welchův t-test (jednostranný) & MWU,"t = 5.79, Delta = +1.55 bodu (Cohen d = 0.49, MWU U = 60521.0)",7.2756e-09 (p < 1e-4),"VŠ rodiče dosahují vyšší G3 (Delta = +1.55 bodu, d = 0.49)",Statisticky významná
+H4: higher -> vzdělání rodičů,"Mann-Whitney U test (jednostranný, max Medu/Fedu)","U = 28044.5, Delta = +0.77 stupně (r_rb = -0.402)",7.0605e-09 (p < 1e-4),"Vyšší vzdělání rodičů u studentů s ambicí na VŠ (Delta = +0.77 stupně, r_rb = -0.402)",Statisticky významná
+H5: famrel -> Dalc+Walc,Spearmanův rank test (jednostranný),rho = -0.1134 (slabá negativní asociace),0.0019,Lepší rodinné vztahy slabě negativně korelují s alkoholem,Statisticky významná
+H6: Dalc+Walc -> G3,Spearmanův rank test (jednostranný),rho = -0.1954 (slabá negativní asociace),2.6115e-07 (p < 1e-4),Vyšší konzumace alkoholu mírně koreluje s nižší známkou,Statisticky významná
+H7: school + address -> G3,OLS regrese s kontrolou školy (95% CI),"beta_addr = +0.537 (95% CI [-0.02, 1.09], univariátně Delta = +1.18)",OLS p = 0.0578 (univariátně p < 1e-4),"Město > Vesnice (po kontrole školy klesá beta na +0.54 [95% CI -0.02, 1.09], část rozdílu souvisí se školou)","Marginální (p = 0.0578), neprokázána po Bonferroni"
