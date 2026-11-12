@@ -1,12 +1,12 @@
-Model,R2 (vysvětlený rozptyl),RMSE (chyba známky),MAE (průměrná chyba)
-"SVR (RBF jádro, C=2.0)",0.274,2.711,1.951
-"ElasticNet (alpha=0.1, l1=0.5)",0.262,2.729,1.983
-Random Forest (100 stromů),0.262,2.734,2.013
-Gradient Boosting (100 stromů),0.261,2.74,2.032
-"Lasso regrese (L1, alpha=0.1)",0.26,2.734,1.988
-Lineární regrese (OLS),0.246,2.754,2.01
-"Ridge regrese (L2, alpha=1.0)",0.246,2.753,2.009
-"SVR (Lineární jádro, C=1.0)",0.245,2.76,2.04
-k-NN Regresor (k=5),0.101,3.013,2.234
-Dummy (Baseline průměr),-0.013,3.211,2.41
-Rozhodovací strom (max_depth=5),-0.055,3.225,2.354
+Model,R2_mean,R2_std,R2 (vysvětlený rozptyl),RMSE (chyba známky),MAE (průměrná chyba)
+Random Forest (100 stromů),0.261,0.06,0.261 +/- 0.060,2.738 +/- 0.342,2.028 +/- 0.140
+"SVR (RBF jádro, C=1.0)",0.258,0.062,0.258 +/- 0.062,2.741 +/- 0.330,1.959 +/- 0.152
+"SVR (Lineární jádro, C=1.0)",0.253,0.059,0.253 +/- 0.059,2.747 +/- 0.303,2.018 +/- 0.131
+Gradient Boosting (100 stromů),0.251,0.055,0.251 +/- 0.055,2.756 +/- 0.336,2.074 +/- 0.130
+Lineární regrese (OLS),0.244,0.081,0.244 +/- 0.081,2.760 +/- 0.292,2.009 +/- 0.134
+"Ridge regrese (L2, alpha=1.0)",0.244,0.081,0.244 +/- 0.081,2.759 +/- 0.292,2.008 +/- 0.134
+"ElasticNet (alpha=1.0, l1=0.5)",0.158,0.027,0.158 +/- 0.027,2.929 +/- 0.382,2.155 +/- 0.191
+k-NN Regresor (k=5),0.084,0.099,0.084 +/- 0.099,3.042 +/- 0.373,2.246 +/- 0.179
+Rozhodovací strom (max_depth=5),0.05,0.116,0.050 +/- 0.116,3.090 +/- 0.299,2.290 +/- 0.147
+"Lasso regrese (L1, alpha=1.0)",0.045,0.018,0.045 +/- 0.018,3.120 +/- 0.396,2.324 +/- 0.235
+Dummy (Baseline průměr),-0.013,0.012,-0.013 +/- 0.012,3.211 +/- 0.394,2.410 +/- 0.235

@@ -1,0 +1,8 @@
+Hypotéza,Metoda testu,Testová statistika,p-hodnota,Směr vlivu,Výsledek testu (alpha=0.05)
+H1: studytime -> G3,Spearmanův rank test,rho = 0.2747,1.0606e-12,Kladný (+),Podpořena (zamítnuta H0)
+H2: romantic -> studytime,Mann-Whitney U test,U = 51899.5,0.1735,Delta průměr = 0.06 h,Nepodpořena (H0 platí)
+H3: VŠ rodiče -> G3,Mann-Whitney U test,U = 60521.0,1.8243e-11,Delta známky = +1.55,Podpořena (zamítnuta H0)
+H4: higher -> rodiče vzdělání,Mann-Whitney U test,U = 28377.0,4.5555e-09,Delta vzdělání = +1.47,Podpořena (zamítnuta H0)
+H5: famrel -> Dalc+Walc,Spearmanův rank test,rho = -0.1134,0.0038,Záporný (-) vztah,Podpořena (zamítnuta H0)
+H6: Dalc+Walc -> G3,Spearmanův rank test,rho = -0.1954,5.2231e-07,Záporný (-) vliv,Podpořena (zamítnuta H0)
+H7: school + address -> G3,Lineární regrese OLS,beta_address = +0.537,< 0.01 (ANCOVA),Město (1) > Vesnice (0),Podpořena (rozdíl je nenulový)

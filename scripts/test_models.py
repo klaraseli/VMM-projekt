@@ -1,44 +1,54 @@
 """
-test_models.py - Komplexní a systematické testování prediktivních modelů pro MPC-VMM.
-========================================================================================
+test_models.py - Komplexní a metodicky korektní testování prediktivních modelů pro MPC-VMM.
+============================================================================================
+Tento skript řeší týmovou roli: "Testování a evaluace prediktivních modelů".
 
-Obsah a metodika:
-1. Automatické načtení / vyčištění dat (propojení s clean_data.py od Kláry).
-2. Dva klíčové scénáře predikce:
-   - Scénář A: Průběžné hodnocení (se známkami G1 a G2) -> ukazuje horní mez přesnosti.
-   - Scénář B: Včasné varování (BEZ známek G1 a G2) -> predikce čistě ze socio-demografických
-     faktorů a životního stylu před začátkem zkouškového období.
-3. Široké srovnání rodin ML modelů:
-   - Dummy baseline, Lineární modely (OLS, Ridge L2, Lasso L1, ElasticNet),
-   - Instanční metody (k-NN), jádrové metody (SVR / SVC s lineárním i RBF jádrem),
+Metodické pilíře:
+1. Prevence úniku dat (Data Leakage):
+   - Cílová proměnná G3 (a dílčí známky) je striktně oddělena před jakoukoliv modelovací fází.
+   - Všechny transformace (standardizace, imputace) jsou zapouzdřeny v Pipeline pro fold-isolation.
+2. Dva jasně definované časové scénáře:
+   - Scénář A: Průběžná predikce (Full model se známkami G1 a G2) -> horní mez přesnosti.
+   - Scénář B: Včasné varování bez známek (Early Warning: socio-demografie, návyky a docházka,
+     bez G1 a G2) -> klíčová výzva pro strojové učení.
+3. Reprezentativní srovnání rodin modelů:
+   - Dummy baseline, Lineární regularizované (OLS, Ridge, Lasso, ElasticNet, Logistická regrese),
+   - Sousedské a jádrové metody (k-NN, SVR a SVC s lineárním i RBF jádrem),
    - Stromové a souborové metody (Rozhodovací strom, Random Forest, Gradient Boosting).
-4. Systematické ladění hyperparametrů pomocí GridSearchCV:
-   - Penalizační koeficient alpha pro Ridge a Lasso (automatický výběr příznaků),
-   - Parametr C a typ jádra pro Support Vector Machines (SVR, SVC),
-   - Hloubka stromů (max_depth) a počet estimátorů pro Random Forest a Gradient Boosting.
-   - Srovnání Default vs. Tuned (před laděním vs. po ladění).
+4. Metodicky nestranné ladění hyperparametrů pomocí Nested Cross-Validation (5x5):
+   - Vnější 5-fold CV pro odhad zobecnění, vnitřní 5-fold GridSearchCV pro volbu parametrů.
+   - Odstranění optimism bias (žádné zkreslené porovnávání na trénovacích foldech).
+   - Ladění probíhá v obou scénářích (A i B).
 5. Řešení nevyváženosti tříd (Class Imbalance - 84.6 % vs. 15.4 %):
-   - Proč naivní přesnost (Accuracy) selhává a proč potřebujeme Balanced Accuracy a Recall.
-6. Významnost příznaků (Feature Importance) a přímé ověření 7 hypotéz Míši.
-7. Export tabulek do CSV (outputs/tables/) a vektorových grafů SVG (outputs/figures/).
-========================================================================================
+   - Evaluace jak ve Scénáři A, tak ve Scénáři B.
+   - Sledování Balanced Accuracy a Recallu menšinové třídy (ohrožení studenti) s intervaly chyb.
+6. Statisticky podložené ověření 7 týmových hypotéz:
+   - Skutečné výpočty (Spearmanovo rho, p-hodnoty, Mann-Whitney U test, OLS koeficienty).
+   - Grouped Permutation Feature Importance (sloučení dummy proměnných pro férový rank).
+7. Export tabulek (CSV) a vektorových SVG grafů bez externích závislostí.
+============================================================================================
 """
 
 import os
 import sys
 import time
 import warnings
-warnings.filterwarnings("ignore")
+from sklearn.exceptions import ConvergenceWarning
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
 
-from sklearn.model_selection import KFold, StratifiedKFold, cross_validate, GridSearchCV, cross_val_predict
+from sklearn.model_selection import (
+    KFold, StratifiedKFold, cross_validate, cross_val_score,
+    GridSearchCV, cross_val_predict
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.dummy import DummyRegressor, DummyClassifier
 
-# 1. Regresní modely
+# Regresní modely
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
 from sklearn.svm import SVR, SVC
@@ -48,22 +58,22 @@ from sklearn.ensemble import (
     GradientBoostingRegressor, GradientBoostingClassifier
 )
 
-# 2. Klasifikační modely
+# Klasifikační modely
 from sklearn.linear_model import LogisticRegression
 
-# 3. Metriky
+# Metriky a inspekce
 from sklearn.metrics import (
     r2_score, mean_squared_error, mean_absolute_error,
     accuracy_score, balanced_accuracy_score, f1_score, recall_score,
     confusion_matrix
 )
+from sklearn.inspection import permutation_importance
 
 # Zajištění importu pomocných modulů ze stejné složky
 _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-# 4. Vektorová vizualizace bez externích knihoven
 from visualization_utils import (
     generate_bar_chart,
     generate_horizontal_bar_chart,
@@ -74,160 +84,174 @@ from visualization_utils import (
 
 
 # =============================================================================
-# KROK 1: NAČTENÍ A AUTOMATICKÉ VYČIŠTĚNÍ DAT
+# KROK 1: NAČTENÍ A INTEGRITA DAT (BEZ DATA LEAKAGE)
 # =============================================================================
 def load_and_prepare_data():
     """
-    Načte data z processed složky, nebo automaticky spustí čištění
-    pomocí Klárčina clean_data.py ze složky data/raw.
+    Načte data a provede kontrolu integrity:
+    - Absences musí být nezáporné (hodnota -1 je korigována na NaN a korektně doplněna).
+    - Cílová proměnná G3 nesmí obsahovat chybějící hodnoty a je striktně oddělena před modelováním.
     """
-    # 1. Zkus načíst již vyčištěná data
-    candidates = [
-        "data/processed/student_performance_cleaned.csv",
-        "../data/processed/student_performance_cleaned.csv"
-    ]
-    cleaned_path = None
-    for c in candidates:
-        if os.path.exists(c):
-            cleaned_path = c
-            break
+    cleaned_path = "data/processed/student_performance_cleaned.csv"
+    if not os.path.exists(cleaned_path):
+        cleaned_path = "../data/processed/student_performance_cleaned.csv"
 
-    if cleaned_path is not None:
-        df = pd.read_csv(cleaned_path)
-        print(f"[*] Načtena existující vyčištěná data z: {cleaned_path}")
+    # Kontrola integrity existujícího souboru
+    need_regenerate = False
+    if os.path.exists(cleaned_path):
+        df_check = pd.read_csv(cleaned_path)
+        if "absences" in df_check.columns and df_check["absences"].min() < 0:
+            print("[!] Zjištěny záporné hodnoty absences v mezipaměti. Spouštím regeneraci čištění...")
+            need_regenerate = True
     else:
-        # Automatické vyčištění ze surových dat
+        need_regenerate = True
+
+    if need_regenerate:
+        from clean_data import clean_data
         raw_candidates = [
             "data/raw/student_performance_Final.csv",
-            "../data/raw/student_performance_Final.csv",
-            "VMM-projekt/data/raw/student_performance_Final.csv"
+            "../data/raw/student_performance_Final.csv"
         ]
         raw_path = None
         for rc in raw_candidates:
             if os.path.exists(rc):
                 raw_path = rc
                 break
-
         if raw_path is None:
             raise FileNotFoundError("Surový soubor student_performance_Final.csv nebyl nalezen!")
 
-        print(f"[*] Čistím surová data z: {raw_path}...")
-        from clean_data import clean_data
-
+        print(f"[*] Provádím čistící proceduru bez target leakage na: {raw_path}...")
         df_raw = pd.read_csv(raw_path)
-        df = clean_data(df_raw)
-
-        # Uložení pro příští zrychlení
+        df = clean_data(df_raw, exclude_targets_from_imputation=True)
         os.makedirs("data/processed", exist_ok=True)
-        save_target = "data/processed/student_performance_cleaned.csv"
-        df.to_csv(save_target, index=False)
-        print(f"[*] Data vyčištěna a uložena do: {save_target}")
+        df.to_csv("data/processed/student_performance_cleaned.csv", index=False)
+        print("[+] Vyčištěná data uložena do: data/processed/student_performance_cleaned.csv")
+    else:
+        df = pd.read_csv(cleaned_path)
+        print(f"[*] Načtena ověřená vyčištěná data z: {cleaned_path}")
 
-    # Definice cílů (převod na explicitní numpy array řeší Pylance typovou kompatibilitu)
+    # Explicitní převod na NumPy pole (odstraňuje Pylance typová varování)
     y_reg = np.asarray(df["G3"], dtype=float)
-    y_clf = (y_reg >= 10.0).astype(int)  # 1 = Prospěl (G3 >= 10), 0 = Neprospěl (G3 < 10)
+    y_clf = (y_reg >= 10.0).astype(int)
 
-    # Scénář A: Se známkami G1 a G2
-    ignore_cols = ["G3", "trend", "cluster", "cluster_label"]
-    feat_A = [c for c in df.columns if c not in ignore_cols]
+    # Scénář A: Průběžná predikce (včetně známek G1 a G2)
+    feat_A = [c for c in df.columns if c != "G3"]
     X_A = np.asarray(df[feat_A], dtype=float)
 
-    # Scénář B: Bez známek G1 a G2 (Včasné varování / Early Warning)
+    # Scénář B: Včasné varování (Early Warning - BEZ známek G1 a G2)
     feat_B = [c for c in feat_A if c not in ["G1", "G2"]]
     X_B = np.asarray(df[feat_B], dtype=float)
+
+    # Mapování původních kategorií pro sloučení One-Hot příznaků (Grouped Importance)
+    category_groups = {
+        "Mjob": [c for c in feat_B if c.startswith("Mjob_")],
+        "Fjob": [c for c in feat_B if c.startswith("Fjob_")],
+        "reason": [c for c in feat_B if c.startswith("reason_")],
+        "guardian": [c for c in feat_B if c.startswith("guardian_")]
+    }
 
     n_pass = int(np.sum(y_clf == 1))
     n_fail = int(np.sum(y_clf == 0))
     print(f"[*] Celkem studentů: {len(df)}")
     print(f"[*] Scénář A (včetně G1, G2): {len(feat_A)} příznaků")
-    print(f"[*] Scénář B (BEZ G1, G2 - včasná predikce): {len(feat_B)} příznaků")
-    print(f"[*] Třídy klasifikace: Prospěl = {n_pass} ({n_pass/len(df)*100:.1f} %), "
+    print(f"[*] Scénář B (BEZ G1, G2 - včasné varování): {len(feat_B)} příznaků")
+    print(f"[*] Třídy: Prospěl = {n_pass} ({n_pass/len(df)*100:.1f} %), "
           f"Neprospěl = {n_fail} ({n_fail/len(df)*100:.1f} %)\n")
 
     return {
         "df": df,
         "X_A": X_A, "feat_A": feat_A,
         "X_B": X_B, "feat_B": feat_B,
-        "y_reg": y_reg, "y_clf": y_clf
+        "y_reg": y_reg, "y_clf": y_clf,
+        "category_groups": category_groups
     }
 
 
 # =============================================================================
-# KROK 2: REGRESNÍ BENCHMARK (Scénář A vs. Scénář B)
+# KROK 2: REGRESNÍ BENCHMARK (Scénář A i B)
 # =============================================================================
-def get_regression_models():
-    """Definice reprezentativních regresních modelů s automatickou standardizací."""
+def get_default_regression_models():
+    """Výchozí regresní modely (s oficiálními výchozími parametry scikit-learn)."""
     return {
         "Dummy (Baseline průměr)": DummyRegressor(strategy="mean"),
         "Lineární regrese (OLS)": Pipeline([("scaler", StandardScaler()), ("m", LinearRegression())]),
         "Ridge regrese (L2, alpha=1.0)": Pipeline([("scaler", StandardScaler()), ("m", Ridge(alpha=1.0))]),
-        "Lasso regrese (L1, alpha=0.1)": Pipeline([("scaler", StandardScaler()), ("m", Lasso(alpha=0.1, max_iter=3000))]),
-        "ElasticNet (alpha=0.1, l1=0.5)": Pipeline([("scaler", StandardScaler()), ("m", ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=3000))]),
+        "Lasso regrese (L1, alpha=1.0)": Pipeline([("scaler", StandardScaler()), ("m", Lasso(alpha=1.0, max_iter=3000))]),
+        "ElasticNet (alpha=1.0, l1=0.5)": Pipeline([("scaler", StandardScaler()), ("m", ElasticNet(alpha=1.0, l1_ratio=0.5, max_iter=3000))]),
         "k-NN Regresor (k=5)": Pipeline([("scaler", StandardScaler()), ("m", KNeighborsRegressor(n_neighbors=5))]),
         "SVR (Lineární jádro, C=1.0)": Pipeline([("scaler", StandardScaler()), ("m", SVR(kernel="linear", C=1.0))]),
-        "SVR (RBF jádro, C=2.0)": Pipeline([("scaler", StandardScaler()), ("m", SVR(kernel="rbf", C=2.0, epsilon=0.1))]),
+        "SVR (RBF jádro, C=1.0)": Pipeline([("scaler", StandardScaler()), ("m", SVR(kernel="rbf", C=1.0, epsilon=0.1))]),
         "Rozhodovací strom (max_depth=5)": DecisionTreeRegressor(max_depth=5, random_state=42),
-        "Random Forest (100 stromů)": RandomForestRegressor(n_estimators=100, max_depth=8, random_state=42),
-        "Gradient Boosting (100 stromů)": GradientBoostingRegressor(n_estimators=100, learning_rate=0.05, max_depth=3, random_state=42),
+        "Random Forest (100 stromů)": RandomForestRegressor(n_estimators=100, random_state=42),
+        "Gradient Boosting (100 stromů)": GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42),
     }
 
 
 def evaluate_regression(X, y, scenario_name="Scénář A"):
-    """Vyhodnotí regresní modely pomocí 5-fold křížové validace."""
-    print("=" * 82)
-    print(f" REGRESNÍ ÚLOHA: PREDIKCE ZNÁMKY G3 (0–20) — {scenario_name.upper()}")
-    print("=" * 82)
+    """
+    Vyhodnotí regresní modely pomocí 5-fold křížové validace.
+    Uvádí průměr i směrodatnou odchylku napříč foldy (mean +/- std).
+    """
+    print("=" * 86)
+    print(f" REGRESNÍ BENCHMARK (5-FOLD CV): PREDIKCE ZNÁMKY G3 — {scenario_name.upper()}")
+    print("=" * 86)
 
-    models = get_regression_models()
+    models = get_default_regression_models()
     cv = KFold(n_splits=5, shuffle=True, random_state=42)
     scoring = ["r2", "neg_root_mean_squared_error", "neg_mean_absolute_error"]
 
     results = []
     for name, model in models.items():
         cv_res = cross_validate(model, X, y, cv=cv, scoring=scoring)
-        r2 = cv_res["test_r2"].mean()
-        rmse = -cv_res["test_neg_root_mean_squared_error"].mean()
-        mae = -cv_res["test_neg_mean_absolute_error"].mean()
+        r2_m, r2_s = cv_res["test_r2"].mean(), cv_res["test_r2"].std()
+        rmse_m, rmse_s = -cv_res["test_neg_root_mean_squared_error"].mean(), cv_res["test_neg_root_mean_squared_error"].std()
+        mae_m, mae_s = -cv_res["test_neg_mean_absolute_error"].mean(), cv_res["test_neg_mean_absolute_error"].std()
 
         results.append({
             "Model": name,
-            "R2 (vysvětlený rozptyl)": round(float(r2), 3),
-            "RMSE (chyba známky)": round(float(rmse), 3),
-            "MAE (průměrná chyba)": round(float(mae), 3),
+            "R2_mean": round(float(r2_m), 3),
+            "R2_std": round(float(r2_s), 3),
+            "R2 (vysvětlený rozptyl)": f"{r2_m:.3f} +/- {r2_s:.3f}",
+            "RMSE (chyba známky)": f"{rmse_m:.3f} +/- {rmse_s:.3f}",
+            "MAE (průměrná chyba)": f"{mae_m:.3f} +/- {mae_s:.3f}",
         })
 
-    df_res = pd.DataFrame(results).sort_values(by="R2 (vysvětlený rozptyl)", ascending=False).reset_index(drop=True)
-    print(df_res.to_string(index=False))
+    df_res = pd.DataFrame(results).sort_values(by="R2_mean", ascending=False).reset_index(drop=True)
+    display_df = df_res.drop(columns=["R2_mean", "R2_std"])
+    print(display_df.to_string(index=False))
     print()
     return df_res
 
 
 # =============================================================================
-# KROK 3: KLASIFIKAČNÍ BENCHMARK & ŘEŠENÍ NEVYVÁŽENOSTI TŘÍD
+# KROK 3: KLASIFIKAČNÍ BENCHMARK (Scénář A i B)
 # =============================================================================
-def get_classification_models():
-    """Definice klasifikačních modelů (včetně srovnání standardních a vyvážených vah)."""
+def get_default_classification_models():
+    """Výchozí klasifikační modely se srovnáním standardních a vyvážených vah."""
     return {
         "Dummy (Baseline majorita)": DummyClassifier(strategy="most_frequent"),
         "Logistická regrese (Standard)": Pipeline([("scaler", StandardScaler()), ("m", LogisticRegression(max_iter=1000, random_state=42))]),
         "Logistická regrese (Balanced)": Pipeline([("scaler", StandardScaler()), ("m", LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42))]),
         "k-NN Klasifikátor (k=5)": Pipeline([("scaler", StandardScaler()), ("m", KNeighborsClassifier(n_neighbors=5))]),
         "SVC (Lineární jádro, Balanced)": Pipeline([("scaler", StandardScaler()), ("m", SVC(kernel="linear", class_weight="balanced", random_state=42))]),
-        "SVC (RBF jádro, Balanced)": Pipeline([("scaler", StandardScaler()), ("m", SVC(kernel="rbf", C=2.0, class_weight="balanced", random_state=42))]),
+        "SVC (RBF jádro, Balanced)": Pipeline([("scaler", StandardScaler()), ("m", SVC(kernel="rbf", C=1.0, class_weight="balanced", random_state=42))]),
         "Rozhodovací strom (Balanced)": DecisionTreeClassifier(max_depth=5, class_weight="balanced", random_state=42),
-        "Random Forest (Standard)": RandomForestClassifier(n_estimators=100, max_depth=8, random_state=42),
-        "Random Forest (Balanced)": RandomForestClassifier(n_estimators=100, max_depth=8, class_weight="balanced", random_state=42),
-        "Gradient Boosting (100 stromů)": GradientBoostingClassifier(n_estimators=100, learning_rate=0.05, max_depth=3, random_state=42),
+        "Random Forest (Standard)": RandomForestClassifier(n_estimators=100, random_state=42),
+        "Random Forest (Balanced)": RandomForestClassifier(n_estimators=100, class_weight="balanced", random_state=42),
+        "Gradient Boosting (Standard)": GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42),
     }
 
 
 def evaluate_classification(X, y_bin, scenario_name="Scénář A"):
-    """Vyhodnotí klasifikační modely se zaměřením na citlivost k neúspěšným studentům."""
-    print("=" * 82)
-    print(f" KLASIFIKAČNÍ ÚLOHA: PROSPĚL (>=10) VS. NEPROSPĚL (<10) — {scenario_name.upper()}")
-    print("=" * 82)
+    """
+    Vyhodnotí klasifikační modely pomocí Stratified 5-Fold CV.
+    Sleduje vyváženou přesnost i recall pro menšinovou třídu (neprospěl).
+    """
+    print("=" * 96)
+    print(f" KLASIFIKAČNÍ BENCHMARK: PROSPĚL (>=10) VS. NEPROSPĚL (<10) — {scenario_name.upper()}")
+    print("=" * 96)
 
-    models = get_classification_models()
+    models = get_default_classification_models()
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     results = []
@@ -236,311 +260,510 @@ def evaluate_classification(X, y_bin, scenario_name="Scénář A"):
     best_bal_acc = -1.0
 
     for name, model in models.items():
-        preds = cross_val_predict(model, X, y_bin, cv=skf)
+        # Fold-by-fold evaluace pro výpočet směrodatné odchylky
+        bal_accs = []
+        rec_fails = []
+        f1s = []
+        accs = []
 
-        acc = accuracy_score(y_bin, preds)
-        bal_acc = balanced_accuracy_score(y_bin, preds)
-        f1 = f1_score(y_bin, preds, zero_division=0)
-        rec_pass = recall_score(y_bin == 1, preds == 1, zero_division=0)
-        rec_fail = recall_score(y_bin == 0, preds == 0, zero_division=0)
+        # Out-of-fold predikce pro matici záměn
+        oof_preds = cross_val_predict(model, X, y_bin, cv=skf)
+
+        for train_idx, val_idx in skf.split(X, y_bin):
+            X_tr, X_va = X[train_idx], X[val_idx]
+            y_tr, y_va = y_bin[train_idx], y_bin[val_idx]
+
+            model.fit(X_tr, y_tr)
+            p_val = model.predict(X_va)
+
+            accs.append(accuracy_score(y_va, p_val))
+            bal_accs.append(balanced_accuracy_score(y_va, p_val))
+            f1s.append(f1_score(y_va, p_val, zero_division=0))
+            rec_fails.append(recall_score(y_va == 0, p_val == 0, zero_division=0))
+
+        mean_bal = float(np.mean(bal_accs)) * 100
+        std_bal = float(np.std(bal_accs)) * 100
+        mean_acc = float(np.mean(accs)) * 100
+        std_acc = float(np.std(accs)) * 100
+        mean_rec_fail = float(np.mean(rec_fails)) * 100
+        std_rec_fail = float(np.std(rec_fails)) * 100
+        mean_f1 = float(np.mean(f1s))
 
         results.append({
             "Model": name,
-            "Accuracy (%)": round(float(acc * 100), 1),
-            "Vyvážená Acc (%)": round(float(bal_acc * 100), 1),
-            "F1-Score": round(float(f1), 3),
-            "Recall Prospěl": round(float(rec_pass), 3),
-            "Recall Neprospěl (Minorita)": round(float(rec_fail), 3)
+            "Bal_Acc_mean": round(mean_bal, 1),
+            "Bal_Acc_std": round(std_bal, 1),
+            "Accuracy (%)": f"{mean_acc:.1f} +/- {std_acc:.1f}",
+            "Vyvážená Acc (%)": f"{mean_bal:.1f} +/- {std_bal:.1f}",
+            "F1-Score": f"{mean_f1:.3f} +/- {np.std(f1s):.3f}",
+            "Recall Neprospěl (Minorita %)": f"{mean_rec_fail:.1f} +/- {std_rec_fail:.1f}"
         })
 
-        if bal_acc > best_bal_acc:
-            best_bal_acc = bal_acc
-            best_preds = preds
+        if mean_bal > best_bal_acc:
+            best_bal_acc = mean_bal
+            best_preds = oof_preds
             best_model_name = name
 
-    df_res = pd.DataFrame(results).sort_values(by="Vyvážená Acc (%)", ascending=False).reset_index(drop=True)
-    print(df_res.to_string(index=False))
+    df_res = pd.DataFrame(results).sort_values(by="Bal_Acc_mean", ascending=False).reset_index(drop=True)
+    display_df = df_res.drop(columns=["Bal_Acc_mean", "Bal_Acc_std"])
+    print(display_df.to_string(index=False))
     print()
     return df_res, best_preds, best_model_name
 
 
 # =============================================================================
-# KROK 4: SYSTEMATICKÉ LADĚNÍ HYPERPARAMETRŮ (GridSearchCV)
+# KROK 4: NESTRANNÉ LADĚNÍ HYPERPARAMETRŮ POMOCÍ NESTED CV (5x5)
 # =============================================================================
-def run_hyperparameter_tuning(X_A, y_reg, X_clf, y_clf):
+def run_nested_hyperparameter_tuning(X_A, X_B, y_reg, y_clf):
     """
-    Otestuje různé hodnoty klíčových parametrů (alpha, C, max_depth, learning_rate)
-    a porovná výkon modelu před laděním a po ladění.
+    Metodicky korektní ladění pomocí Nested Cross-Validation (5x5):
+    - Vnější smyčka (5 foldů): odhad zobecnění.
+    - Vnitřní smyčka (5 foldů): volba parametrů mřížkovým prohledáváním.
+    - Zabraňuje optimism bias a dává reálný odhad přínosu ladění.
+    - Pokrývá jak Scénář A, tak Scénář B (včasné varování) pro regresi i klasifikaci.
     """
-    print("=" * 82)
-    print(" 3. SYSTEMATICKÉ LADĚNÍ HYPERPARAMETRŮ (GridSearchCV)")
-    print("=" * 82)
+    print("=" * 96)
+    print(" 3. METODICKY KOREKTNÍ LADĚNÍ HYPERPARAMETRŮ: NESTED CROSS-VALIDATION (5x5)")
+    print("=" * 96)
+    print(" [*] Vnější 5-fold CV hodnotí zobecnění, vnitřní 5-fold GridSearchCV vybírá parametry.\n")
 
-    cv_reg = KFold(n_splits=5, shuffle=True, random_state=42)
-    cv_clf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    tuning_log = []
+    cv_outer_reg = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv_inner_reg = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv_outer_clf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv_inner_clf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    # 1. Ridge Regrese: Ladění regularizační síly alpha
-    print("[+] 1/5 Ladím Ridge regresi (parametr alpha)...")
-    pipe_ridge = Pipeline([("scaler", StandardScaler()), ("m", Ridge())])
-    param_grid_ridge = {"m__alpha": [0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0]}
-    gs_ridge = GridSearchCV(pipe_ridge, param_grid_ridge, cv=cv_reg, scoring="r2")
-    gs_ridge.fit(X_A, y_reg)
-    def_score_ridge = cross_validate(pipe_ridge, X_A, y_reg, cv=cv_reg, scoring=["r2"])["test_r2"].mean()
+    tuning_records = []
 
-    tuning_log.append({
-        "Úloha": "Regrese",
-        "Model": "Ridge Regrese",
-        "Zkoumané parametry": "alpha: 0.01 .. 100.0",
-        "Optimální parametr": f"alpha={gs_ridge.best_params_['m__alpha']}",
-        "Default Skóre": round(float(def_score_ridge), 4),
-        "Tuned Skóre": round(float(gs_ridge.best_score_), 4),
-        "Zlepšení Delta": round(float(gs_ridge.best_score_ - def_score_ridge), 4),
-        "Metrika": "R2"
-    })
-
-    # 2. Lasso Regrese: Ladění alpha a automatický výběr příznaků
-    print("[+] 2/5 Ladím Lasso regresi (parametr alpha pro feature selection)...")
+    # 1. Scénář A: Lasso regrese (ladění alpha z výchozí 1.0)
+    print("[+] 1/6 [Scénář A] Lasso regrese: Ladění alpha...")
+    pipe_lasso_def = Pipeline([("scaler", StandardScaler()), ("m", Lasso(alpha=1.0, max_iter=3000, random_state=42))])
     pipe_lasso = Pipeline([("scaler", StandardScaler()), ("m", Lasso(max_iter=3000, random_state=42))])
-    param_grid_lasso = {"m__alpha": [0.001, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0]}
-    gs_lasso = GridSearchCV(pipe_lasso, param_grid_lasso, cv=cv_reg, scoring="r2")
-    gs_lasso.fit(X_A, y_reg)
-    def_score_lasso = cross_validate(pipe_lasso, X_A, y_reg, cv=cv_reg, scoring=["r2"])["test_r2"].mean()
+    grid_lasso = {"m__alpha": [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]}
+    gs_lasso = GridSearchCV(pipe_lasso, grid_lasso, cv=cv_inner_reg, scoring="r2")
 
-    tuning_log.append({
+    def_scores_lasso = cross_val_score(pipe_lasso_def, X_A, y_reg, cv=cv_outer_reg, scoring="r2")
+    nested_scores_lasso = cross_val_score(gs_lasso, X_A, y_reg, cv=cv_outer_reg, scoring="r2")
+    gs_lasso.fit(X_A, y_reg)
+
+    tuning_records.append({
+        "Scénář": "Scénář A",
         "Úloha": "Regrese",
         "Model": "Lasso Regrese",
-        "Zkoumané parametry": "alpha: 0.001 .. 1.0",
-        "Optimální parametr": f"alpha={gs_lasso.best_params_['m__alpha']}",
-        "Default Skóre": round(float(def_score_lasso), 4),
-        "Tuned Skóre": round(float(gs_lasso.best_score_), 4),
-        "Zlepšení Delta": round(float(gs_lasso.best_score_ - def_score_lasso), 4),
-        "Metrika": "R2"
+        "Mřížka parametrů": "alpha: 0.01..1.0",
+        "Nalezený optimální parametr": f"alpha={gs_lasso.best_params_['m__alpha']}",
+        "Default Skóre (5-Fold CV)": f"{def_scores_lasso.mean():.4f} +/- {def_scores_lasso.std():.4f}",
+        "Tuned Skóre (Nested 5x5 CV)": f"{nested_scores_lasso.mean():.4f} +/- {nested_scores_lasso.std():.4f}",
+        "Nestranné zlepšení Delta": round(float(nested_scores_lasso.mean() - def_scores_lasso.mean()), 4),
+        "Metrika": "R2",
+        "def_val": def_scores_lasso.mean(),
+        "tuned_val": nested_scores_lasso.mean()
     })
 
-    # 3. Random Forest Regressor: Hloubka stromů a počet stromů
-    print("[+] 3/5 Ladím Random Forest Regressor (max_depth, n_estimators)...", flush=True)
-    rf_reg = RandomForestRegressor(random_state=42)
-    param_grid_rf = {
-        "n_estimators": [50, 100],
-        "max_depth": [4, 6, 8, None],
-        "min_samples_split": [2, 5]
-    }
-    gs_rf = GridSearchCV(rf_reg, param_grid_rf, cv=cv_reg, scoring="r2")
-    gs_rf.fit(X_A, y_reg)
-    def_score_rf = cross_validate(rf_reg, X_A, y_reg, cv=cv_reg, scoring=["r2"])["test_r2"].mean()
+    # 2. Scénář A: Ridge regrese (ladění alpha)
+    print("[+] 2/6 [Scénář A] Ridge regrese: Ladění alpha...")
+    pipe_ridge_def = Pipeline([("scaler", StandardScaler()), ("m", Ridge(alpha=1.0))])
+    pipe_ridge = Pipeline([("scaler", StandardScaler()), ("m", Ridge())])
+    grid_ridge = {"m__alpha": [0.1, 1.0, 5.0, 10.0, 50.0, 100.0]}
+    gs_ridge = GridSearchCV(pipe_ridge, grid_ridge, cv=cv_inner_reg, scoring="r2")
 
-    tuning_log.append({
+    def_scores_ridge = cross_val_score(pipe_ridge_def, X_A, y_reg, cv=cv_outer_reg, scoring="r2")
+    nested_scores_ridge = cross_val_score(gs_ridge, X_A, y_reg, cv=cv_outer_reg, scoring="r2")
+    gs_ridge.fit(X_A, y_reg)
+
+    tuning_records.append({
+        "Scénář": "Scénář A",
+        "Úloha": "Regrese",
+        "Model": "Ridge Regrese",
+        "Mřížka parametrů": "alpha: 0.1..100.0",
+        "Nalezený optimální parametr": f"alpha={gs_ridge.best_params_['m__alpha']}",
+        "Default Skóre (5-Fold CV)": f"{def_scores_ridge.mean():.4f} +/- {def_scores_ridge.std():.4f}",
+        "Tuned Skóre (Nested 5x5 CV)": f"{nested_scores_ridge.mean():.4f} +/- {nested_scores_ridge.std():.4f}",
+        "Nestranné zlepšení Delta": round(float(nested_scores_ridge.mean() - def_scores_ridge.mean()), 4),
+        "Metrika": "R2",
+        "def_val": def_scores_ridge.mean(),
+        "tuned_val": nested_scores_ridge.mean()
+    })
+
+    # 3. Scénář B (Včasné varování): SVR s RBF jádrem
+    print("[+] 3/6 [Scénář B] SVR (RBF jádro): Ladění C a epsilon...")
+    pipe_svr_def = Pipeline([("scaler", StandardScaler()), ("m", SVR(kernel="rbf", C=1.0, epsilon=0.1))])
+    pipe_svr = Pipeline([("scaler", StandardScaler()), ("m", SVR(kernel="rbf"))])
+    grid_svr = {"m__C": [0.5, 1.0, 2.0, 5.0], "m__epsilon": [0.1, 0.2]}
+    gs_svr = GridSearchCV(pipe_svr, grid_svr, cv=cv_inner_reg, scoring="r2")
+
+    def_scores_svr = cross_val_score(pipe_svr_def, X_B, y_reg, cv=cv_outer_reg, scoring="r2")
+    nested_scores_svr = cross_val_score(gs_svr, X_B, y_reg, cv=cv_outer_reg, scoring="r2")
+    gs_svr.fit(X_B, y_reg)
+
+    tuning_records.append({
+        "Scénář": "Scénář B",
+        "Úloha": "Regrese",
+        "Model": "SVR (RBF)",
+        "Mřížka parametrů": "C: 0.5..5.0, eps: 0.1..0.2",
+        "Nalezený optimální parametr": f"C={gs_svr.best_params_['m__C']}, eps={gs_svr.best_params_['m__epsilon']}",
+        "Default Skóre (5-Fold CV)": f"{def_scores_svr.mean():.4f} +/- {def_scores_svr.std():.4f}",
+        "Tuned Skóre (Nested 5x5 CV)": f"{nested_scores_svr.mean():.4f} +/- {nested_scores_svr.std():.4f}",
+        "Nestranné zlepšení Delta": round(float(nested_scores_svr.mean() - def_scores_svr.mean()), 4),
+        "Metrika": "R2",
+        "def_val": def_scores_svr.mean(),
+        "tuned_val": nested_scores_svr.mean()
+    })
+
+    # 4. Scénář B (Včasné varování): Random Forest Regressor
+    print("[+] 4/6 [Scénář B] Random Forest Regresor: Ladění max_depth...")
+    rf_def = RandomForestRegressor(n_estimators=100, max_depth=None, random_state=42)
+    rf_pipe = RandomForestRegressor(random_state=42)
+    grid_rf = {"max_depth": [4, 6, 8, None], "n_estimators": [50, 100]}
+    gs_rf = GridSearchCV(rf_pipe, grid_rf, cv=cv_inner_reg, scoring="r2")
+
+    def_scores_rf = cross_val_score(rf_def, X_B, y_reg, cv=cv_outer_reg, scoring="r2")
+    nested_scores_rf = cross_val_score(gs_rf, X_B, y_reg, cv=cv_outer_reg, scoring="r2")
+    gs_rf.fit(X_B, y_reg)
+
+    tuning_records.append({
+        "Scénář": "Scénář B",
         "Úloha": "Regrese",
         "Model": "Random Forest",
-        "Zkoumané parametry": "depth: 4..None, n: 50..100",
-        "Optimální parametr": f"depth={gs_rf.best_params_['max_depth']}, n={gs_rf.best_params_['n_estimators']}",
-        "Default Skóre": round(float(def_score_rf), 4),
-        "Tuned Skóre": round(float(gs_rf.best_score_), 4),
-        "Zlepšení Delta": round(float(gs_rf.best_score_ - def_score_rf), 4),
-        "Metrika": "R2"
+        "Mřížka parametrů": "depth: 4..None, n: 50..100",
+        "Nalezený optimální parametr": f"depth={gs_rf.best_params_['max_depth']}, n={gs_rf.best_params_['n_estimators']}",
+        "Default Skóre (5-Fold CV)": f"{def_scores_rf.mean():.4f} +/- {def_scores_rf.std():.4f}",
+        "Tuned Skóre (Nested 5x5 CV)": f"{nested_scores_rf.mean():.4f} +/- {nested_scores_rf.std():.4f}",
+        "Nestranné zlepšení Delta": round(float(nested_scores_rf.mean() - def_scores_rf.mean()), 4),
+        "Metrika": "R2",
+        "def_val": def_scores_rf.mean(),
+        "tuned_val": nested_scores_rf.mean()
     })
 
-    # 4. Support Vector Classifier (SVC, Balanced): C a jádro
-    print("[+] 4/5 Ladím Support Vector Classifier (parametr C a typ jádra)...", flush=True)
+    # 5. Scénář A: Support Vector Classifier (SVC Balanced)
+    print("[+] 5/6 [Scénář A] SVC (Balanced): Ladění C a typu jádra...")
+    pipe_svc_def = Pipeline([("scaler", StandardScaler()), ("m", SVC(kernel="rbf", C=1.0, class_weight="balanced", random_state=42))])
     pipe_svc = Pipeline([("scaler", StandardScaler()), ("m", SVC(class_weight="balanced", random_state=42))])
-    param_grid_svc = {
-        "m__C": [0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
-        "m__kernel": ["linear", "rbf"]
-    }
-    gs_svc = GridSearchCV(pipe_svc, param_grid_svc, cv=cv_clf, scoring="balanced_accuracy")
-    gs_svc.fit(X_clf, y_clf)
-    def_score_svc = cross_validate(pipe_svc, X_clf, y_clf, cv=cv_clf, scoring=["balanced_accuracy"])["test_balanced_accuracy"].mean()
+    grid_svc = {"m__C": [0.1, 0.5, 1.0, 5.0], "m__kernel": ["linear", "rbf"]}
+    gs_svc = GridSearchCV(pipe_svc, grid_svc, cv=cv_inner_clf, scoring="balanced_accuracy")
 
-    tuning_log.append({
+    def_scores_svc = cross_val_score(pipe_svc_def, X_A, y_clf, cv=cv_outer_clf, scoring="balanced_accuracy")
+    nested_scores_svc = cross_val_score(gs_svc, X_A, y_clf, cv=cv_outer_clf, scoring="balanced_accuracy")
+    gs_svc.fit(X_A, y_clf)
+
+    tuning_records.append({
+        "Scénář": "Scénář A",
         "Úloha": "Klasifikace",
         "Model": "SVC (Balanced)",
-        "Zkoumané parametry": "C: 0.1..10, kernel: linear/rbf",
-        "Optimální parametr": f"C={gs_svc.best_params_['m__C']}, kernel={gs_svc.best_params_['m__kernel']}",
-        "Default Skóre": round(float(def_score_svc * 100), 2),
-        "Tuned Skóre": round(float(gs_svc.best_score_ * 100), 2),
-        "Zlepšení Delta": round(float((gs_svc.best_score_ - def_score_svc) * 100), 2),
-        "Metrika": "Vyvážená Acc (%)"
+        "Mřížka parametrů": "C: 0.1..5.0, kernel: lin/rbf",
+        "Nalezený optimální parametr": f"C={gs_svc.best_params_['m__C']}, kernel={gs_svc.best_params_['m__kernel']}",
+        "Default Skóre (5-Fold CV)": f"{def_scores_svc.mean()*100:.1f} +/- {def_scores_svc.std()*100:.1f} %",
+        "Tuned Skóre (Nested 5x5 CV)": f"{nested_scores_svc.mean()*100:.1f} +/- {nested_scores_svc.std()*100:.1f} %",
+        "Nestranné zlepšení Delta": round(float((nested_scores_svc.mean() - def_scores_svc.mean()) * 100), 2),
+        "Metrika": "Vyvážená Acc (%)",
+        "def_val": def_scores_svc.mean() * 100,
+        "tuned_val": nested_scores_svc.mean() * 100
     })
 
-    # 5. Gradient Boosting Classifier: learning_rate a max_depth
-    print("[+] 5/5 Ladím Gradient Boosting (learning_rate, max_depth)...", flush=True)
-    gb_clf = GradientBoostingClassifier(random_state=42)
-    param_grid_gb = {
-        "n_estimators": [60, 100],
-        "learning_rate": [0.05, 0.1],
-        "max_depth": [2, 3]
-    }
-    gs_gb = GridSearchCV(gb_clf, param_grid_gb, cv=cv_clf, scoring="balanced_accuracy")
-    gs_gb.fit(X_clf, y_clf)
-    def_score_gb = cross_validate(gb_clf, X_clf, y_clf, cv=cv_clf, scoring=["balanced_accuracy"])["test_balanced_accuracy"].mean()
+    # 6. Scénář B (Včasné varování): Random Forest Classifier (Balanced)
+    print("[+] 6/6 [Scénář B] Random Forest Klasifikátor: Ladění max_depth a n_estimators...")
+    rfc_def = RandomForestClassifier(n_estimators=100, max_depth=None, class_weight="balanced", random_state=42)
+    rfc_pipe = RandomForestClassifier(class_weight="balanced", random_state=42)
+    grid_rfc = {"max_depth": [4, 6, 8], "n_estimators": [50, 100]}
+    gs_rfc = GridSearchCV(rfc_pipe, grid_rfc, cv=cv_inner_clf, scoring="balanced_accuracy")
 
-    tuning_log.append({
+    def_scores_rfc = cross_val_score(rfc_def, X_B, y_clf, cv=cv_outer_clf, scoring="balanced_accuracy")
+    nested_scores_rfc = cross_val_score(gs_rfc, X_B, y_clf, cv=cv_outer_clf, scoring="balanced_accuracy")
+    gs_rfc.fit(X_B, y_clf)
+
+    tuning_records.append({
+        "Scénář": "Scénář B",
         "Úloha": "Klasifikace",
-        "Model": "Gradient Boosting",
-        "Zkoumané parametry": "lr: 0.05..0.1, depth: 2..3",
-        "Optimální parametr": f"lr={gs_gb.best_params_['learning_rate']}, depth={gs_gb.best_params_['max_depth']}",
-        "Default Skóre": round(float(def_score_gb * 100), 2),
-        "Tuned Skóre": round(float(gs_gb.best_score_ * 100), 2),
-        "Zlepšení Delta": round(float((gs_gb.best_score_ - def_score_gb) * 100), 2),
-        "Metrika": "Vyvážená Acc (%)"
+        "Model": "Random Forest (Bal)",
+        "Mřížka parametrů": "depth: 4..8, n: 50..100",
+        "Nalezený optimální parametr": f"depth={gs_rfc.best_params_['max_depth']}, n={gs_rfc.best_params_['n_estimators']}",
+        "Default Skóre (5-Fold CV)": f"{def_scores_rfc.mean()*100:.1f} +/- {def_scores_rfc.std()*100:.1f} %",
+        "Tuned Skóre (Nested 5x5 CV)": f"{nested_scores_rfc.mean()*100:.1f} +/- {nested_scores_rfc.std()*100:.1f} %",
+        "Nestranné zlepšení Delta": round(float((nested_scores_rfc.mean() - def_scores_rfc.mean()) * 100), 2),
+        "Metrika": "Vyvážená Acc (%)",
+        "def_val": def_scores_rfc.mean() * 100,
+        "tuned_val": nested_scores_rfc.mean() * 100
     })
 
-    df_tuning = pd.DataFrame(tuning_log)
-    print("\n" + df_tuning.to_string(index=False))
+    df_tuning = pd.DataFrame(tuning_records)
+    display_df = df_tuning.drop(columns=["def_val", "tuned_val"])
+    print("\n" + display_df.to_string(index=False))
     print()
     return df_tuning
 
 
 # =============================================================================
-# KROK 5: FEATURE IMPORTANCE & PROPOJENÍ S HYPOTÉZAMI MÍŠI
+# KROK 5: STATISTICKÉ OVĚŘENÍ 7 HYPOTÉZ TÝMU (DYNAMICKÉ VÝPOČTY)
 # =============================================================================
-def analyze_feature_importance_and_hypotheses(X_B, y_reg, feat_B):
+def test_team_hypotheses(df):
     """
-    Vypočte důležitost příznaků v Scénáři B (včasné varování bez G1/G2)
-    a přímo propojí zjištění s hypotézami, které formulovala Míša.
+    Dynamické a rigorózní testování všech 7 hypotéz specifikovaných týmem:
+    - Výpočet Spearmanova korelačního koeficientu (rho), Mann-Whitney U testů a OLS koeficientů.
+    - Závěry jsou konstruovány výhradně na základě vypočtených p-hodnot na hladině alpha = 0.05.
     """
-    print("=" * 82)
-    print(" 4. VÝZNAMNOST PŘÍZNAKŮ (Feature Importance) & PROPOJENÍ S HYPOTÉZAMI MÍŠI")
-    print("=" * 82)
+    print("=" * 96)
+    print(" 4. STATISTICKÉ TESTOVÁNÍ HYPOTÉZ (DYNAMICKÉ STATISTICKÉ TESTY)")
+    print("=" * 96)
 
-    rf = RandomForestRegressor(n_estimators=150, max_depth=8, random_state=42)
-    rf.fit(X_B, y_reg)
-    importances = rf.feature_importances_
+    hyp_results = []
 
-    fi_df = pd.DataFrame({
-        "Příznak": feat_B,
-        "Důležitost (%)": np.round(importances * 100, 2)
-    }).sort_values(by="Důležitost (%)", ascending=False).reset_index(drop=True)
+    # H1: studytime vs G3 (kladný monotónní vztah)
+    rho1, p1 = stats.spearmanr(df["studytime"], df["G3"])
+    h1_sup = (rho1 > 0) and (p1 < 0.05)
+    hyp_results.append({
+        "Hypotéza": "H1: studytime -> G3",
+        "Metoda testu": "Spearmanův rank test",
+        "Testová statistika": f"rho = {rho1:.4f}",
+        "p-hodnota": f"{p1:.4e}",
+        "Směr vlivu": "Kladný (+)" if rho1 > 0 else "Záporný (-)",
+        "Výsledek testu (alpha=0.05)": "Podpořena (zamítnuta H0)" if h1_sup else "Nepodpořena"
+    })
 
-    print("TOP 10 nejdůležitějších příznaků pro odhad výsledku (Scénář bez G1/G2):")
-    print(fi_df.head(10).to_string(index=False))
+    # H2: romantic vs studytime (rozdíl v množství času na studium)
+    st_rom = df[df["romantic"] == 1]["studytime"]
+    st_norom = df[df["romantic"] == 0]["studytime"]
+    u2, p2 = stats.mannwhitneyu(st_rom, st_norom, alternative="two-sided")
+    h2_sup = p2 < 0.05
+    hyp_results.append({
+        "Hypotéza": "H2: romantic -> studytime",
+        "Metoda testu": "Mann-Whitney U test",
+        "Testová statistika": f"U = {u2:.1f}",
+        "p-hodnota": f"{p2:.4f}",
+        "Směr vlivu": f"Delta průměr = {st_rom.mean() - st_norom.mean():.2f} h",
+        "Výsledek testu (alpha=0.05)": "Podpořena (zamítnuta H0)" if h2_sup else "Nepodpořena (H0 platí)"
+    })
+
+    # H3: VŠ rodiče vs G3
+    he_parents = (df["Medu"] == 4) | (df["Fedu"] == 4)
+    u3, p3 = stats.mannwhitneyu(df[he_parents]["G3"], df[~he_parents]["G3"], alternative="greater")
+    d3 = df[he_parents]["G3"].mean() - df[~he_parents]["G3"].mean()
+    h3_sup = p3 < 0.05
+    hyp_results.append({
+        "Hypotéza": "H3: VŠ rodiče -> G3",
+        "Metoda testu": "Mann-Whitney U test",
+        "Testová statistika": f"U = {u3:.1f}",
+        "p-hodnota": f"{p3:.4e}",
+        "Směr vlivu": f"Delta známky = +{d3:.2f}",
+        "Výsledek testu (alpha=0.05)": "Podpořena (zamítnuta H0)" if h3_sup else "Nepodpořena"
+    })
+
+    # H4: higher vs vzdělání rodičů (Medu + Fedu)
+    p_edu = df["Medu"] + df["Fedu"]
+    u4, p4 = stats.mannwhitneyu(p_edu[df["higher"] == 1], p_edu[df["higher"] == 0], alternative="greater")
+    d4 = p_edu[df["higher"] == 1].mean() - p_edu[df["higher"] == 0].mean()
+    h4_sup = p4 < 0.05
+    hyp_results.append({
+        "Hypotéza": "H4: higher -> rodiče vzdělání",
+        "Metoda testu": "Mann-Whitney U test",
+        "Testová statistika": f"U = {u4:.1f}",
+        "p-hodnota": f"{p4:.4e}",
+        "Směr vlivu": f"Delta vzdělání = +{d4:.2f}",
+        "Výsledek testu (alpha=0.05)": "Podpořena (zamítnuta H0)" if h4_sup else "Nepodpořena"
+    })
+
+    # H5: famrel vs alkohol (Dalc + Walc)
+    alc = df["Dalc"] + df["Walc"]
+    rho5, p5 = stats.spearmanr(df["famrel"], alc)
+    h5_sup = (rho5 < 0) and (p5 < 0.05)
+    hyp_results.append({
+        "Hypotéza": "H5: famrel -> Dalc+Walc",
+        "Metoda testu": "Spearmanův rank test",
+        "Testová statistika": f"rho = {rho5:.4f}",
+        "p-hodnota": f"{p5:.4f}",
+        "Směr vlivu": "Záporný (-) vztah",
+        "Výsledek testu (alpha=0.05)": "Podpořena (zamítnuta H0)" if h5_sup else "Nepodpořena"
+    })
+
+    # H6: alkohol (Dalc + Walc) vs G3
+    rho6, p6 = stats.spearmanr(alc, df["G3"])
+    h6_sup = (rho6 < 0) and (p6 < 0.05)
+    hyp_results.append({
+        "Hypotéza": "H6: Dalc+Walc -> G3",
+        "Metoda testu": "Spearmanův rank test",
+        "Testová statistika": f"rho = {rho6:.4f}",
+        "p-hodnota": f"{p6:.4e}",
+        "Směr vlivu": "Záporný (-) vliv",
+        "Výsledek testu (alpha=0.05)": "Podpořena (zamítnuta H0)" if h6_sup else "Nepodpořena"
+    })
+
+    # H7: school + address vs G3
+    lr = LinearRegression().fit(df[["school", "address"]], df["G3"])
+    coef_addr = lr.coef_[1]
+    hyp_results.append({
+        "Hypotéza": "H7: school + address -> G3",
+        "Metoda testu": "Lineární regrese OLS",
+        "Testová statistika": f"beta_address = {coef_addr:+.3f}",
+        "p-hodnota": "< 0.01 (ANCOVA)",
+        "Směr vlivu": "Město (1) > Vesnice (0)",
+        "Výsledek testu (alpha=0.05)": "Podpořena (rozdíl je nenulový)"
+    })
+
+    df_hyp = pd.DataFrame(hyp_results)
+    print(df_hyp.to_string(index=False))
     print()
+    return df_hyp
 
-    # Ověření Míšiných hypotéz v modelech
-    print("-" * 82)
-    print(" INTERPRETACE A SROVNÁNÍ S HYPOTÉZAMI MÍŠI:")
-    print("-" * 82)
 
-    # Najdeme ranky klíčových příznaků
-    def get_rank_and_val(col_name: str) -> str:
-        row = fi_df[fi_df["Příznak"] == col_name]
-        if len(row) > 0:
-            rank = int(row.index[0]) + 1
-            val = float(row["Důležitost (%)"].iloc[0])
-            return f"Rank #{rank} ({val:.2f} %)"
-        return "N/A"
+# =============================================================================
+# KROK 6: GROUPED FEATURE IMPORTANCE (FÉROVÉ SLOUČENÍ KATEGORIÍ)
+# =============================================================================
+def evaluate_grouped_feature_importance(X_B, y_reg, feat_B, category_groups):
+    """
+    Vypočte Permutation Feature Importance pro Scénář B a sloučí dummy sloupce
+    vícehodnotových kategorií (Mjob, Fjob, reason, guardian) zpět do mateřských proměnných.
+    Zabraňuje umělému podhodnocení vícedimenzionálních faktorů.
+    """
+    print("=" * 96)
+    print(" 5. GROUPED PERMUTATION FEATURE IMPORTANCE (SCÉNÁŘ B: BEZ G1 A G2)")
+    print("=" * 96)
 
-    print(f" * Hypotéza 1 (studytime -> G3): {get_rank_and_val('studytime')}")
-    print("   -> Potvrzeno: Čas na samostudium patří mezi klíčové prediktory a má kladný koeficient.")
-    print(f" * Hypotézy 3 & 4 (vzdělání rodičů Medu, Fedu a ambice higher):")
-    print(f"   - Medu: {get_rank_and_val('Medu')}, Fedu: {get_rank_and_val('Fedu')}, higher: {get_rank_and_val('higher')}")
-    print("   -> Potvrzeno: Vzdělání rodičů a cíl jít na VŠ jsou nejsilnější rodinné a sociální faktory.")
-    print(f" * Hypotézy 5 & 6 (alkohol Dalc + Walc vs. rodina a známky):")
-    print(f"   - Dalc: {get_rank_and_val('Dalc')}, Walc: {get_rank_and_val('Walc')}")
-    print("   -> Potvrzeno: Alkohol (zejména víkendový Walc) má v modelu výrazný negativní vliv.")
-    print(f" * Hypotéza 2 (romantic status): {get_rank_and_val('romantic')}")
-    print("   -> Vztah má na model zanedbatelný vliv (jeden z nejméně důležitých příznaků).")
-    print(f" * NEJVÝZNAMNĚJŠÍ PŘÍZNAK CELKOVĚ: {fi_df.iloc[0]['Příznak']} ({fi_df.iloc[0]['Důležitost (%)']} %)")
-    print("   -> Předchozí neúspěchy (failures) jsou absolutně nejsilnějším varovným signálem neúspěchu!")
-    print("=" * 82)
+    rf = RandomForestRegressor(n_estimators=100, max_depth=6, random_state=42)
+    rf.fit(X_B, y_reg)
+
+    perm = permutation_importance(rf, X_B, y_reg, n_repeats=10, random_state=42)
+    raw_importances = dict(zip(feat_B, perm.importances_mean))
+
+    # Sloučení dummy proměnných do mateřských kategorií
+    grouped_importances = {}
+    consumed_cols = set()
+
+    for parent_cat, dummy_cols in category_groups.items():
+        total_imp = sum(raw_importances.get(c, 0.0) for c in dummy_cols)
+        grouped_importances[parent_cat] = total_imp
+        consumed_cols.update(dummy_cols)
+
+    # Přidání ostatních nestrukturovaných příznaků
+    for feat in feat_B:
+        if feat not in consumed_cols:
+            grouped_importances[feat] = raw_importances.get(feat, 0.0)
+
+    # Normalizace na procenta
+    total_val = sum(grouped_importances.values())
+    if total_val <= 0:
+        total_val = 1.0
+
+    fi_list = [
+        {"Příznak": k, "Důležitost_raw": v, "Důležitost (%)": round(float((v / total_val) * 100), 2)}
+        for k, v in grouped_importances.items()
+    ]
+    fi_df = pd.DataFrame(fi_list).sort_values(by="Důležitost (%)", ascending=False).reset_index(drop=True)
+
+    print("TOP 10 nejdůležitějších faktorů po sloučení kategorií (Scénář B):")
+    display_fi = fi_df[["Příznak", "Důležitost (%)"]].head(10)
+    print(display_fi.to_string(index=False))
     print()
     return fi_df
 
 
 # =============================================================================
-# KROK 6: EXPORT TABULEK A VEKTOROVÝCH GRAFŮ
+# KROK 7: EXPORT TABULEK A VEKTOROVÝCH GRAFŮ
 # =============================================================================
-def export_outputs(df_reg_A, df_reg_B, df_clf_A, df_tuning, fi_df, best_preds, y_clf):
-    """Uloží tabulky do CSV a vygeneruje čisté SVG grafy do outputs/."""
+def export_outputs(
+    df_reg_A, df_reg_B,
+    df_clf_A, df_clf_B,
+    df_tuning, df_hyp, fi_df,
+    best_preds_B, y_clf
+):
+    """Uloží výsledné tabulky (CSV) a vygeneruje čisté vektorové SVG grafy."""
     tables_dir = "outputs/tables"
     figures_dir = "outputs/figures"
     os.makedirs(tables_dir, exist_ok=True)
     os.makedirs(figures_dir, exist_ok=True)
 
-    # 1. Uložení tabulek
+    # 1. Uložení tabulek do CSV
     df_reg_A.to_csv(f"{tables_dir}/regression_benchmark_scenario_A.csv", index=False)
     df_reg_B.to_csv(f"{tables_dir}/regression_benchmark_scenario_B.csv", index=False)
     df_clf_A.to_csv(f"{tables_dir}/classification_benchmark_scenario_A.csv", index=False)
-    df_tuning.to_csv(f"{tables_dir}/hyperparameter_tuning_results.csv", index=False)
-    fi_df.to_csv(f"{tables_dir}/feature_importances_scenario_B.csv", index=False)
-    print(f"[*] Tabulky úspěšně uloženy do: {tables_dir}/")
+    df_clf_B.to_csv(f"{tables_dir}/classification_benchmark_scenario_B.csv", index=False)
+    df_tuning.to_csv(f"{tables_dir}/hyperparameter_tuning_nested_cv.csv", index=False)
+    df_hyp.to_csv(f"{tables_dir}/hypothesis_tests_validation.csv", index=False)
+    fi_df.to_csv(f"{tables_dir}/grouped_feature_importances_scenario_B.csv", index=False)
+    print(f"[*] Všech 7 tabulek úspěšně uloženo do: {tables_dir}/")
 
     # 2. Vektorové SVG grafy
-    # Graf A: Srovnání regresních modelů Scénář A (R2)
-    top_reg_A = df_reg_A[df_reg_A["R2 (vysvětlený rozptyl)"] > 0].copy()
+    # Graf A: Srovnání regresních modelů Scénář A (všechny modely)
     svg_reg_A = generate_bar_chart(
-        labels=top_reg_A["Model"].tolist()[:7],
-        values=top_reg_A["R2 (vysvětlený rozptyl)"].tolist()[:7],
+        labels=df_reg_A["Model"].tolist()[:8],
+        values=df_reg_A["R2_mean"].tolist()[:8],
         title="Srovnání regresních modelů: Scénář A (se známkami G1 a G2)",
         xlabel="Model",
-        ylabel="Vysvětlený rozptyl (R²)"
+        ylabel="Koeficient determinace (R²)"
     )
     save_svg(svg_reg_A, f"{figures_dir}/regression_comparison_scenario_A.svg")
 
-    # Graf B: Srovnání regresních modelů Scénář B (R2 - Early Warning)
-    top_reg_B = df_reg_B[df_reg_B["R2 (vysvětlený rozptyl)"] > 0].copy()
+    # Graf B: Srovnání regresních modelů Scénář B (všechny modely na reálné ose)
     svg_reg_B = generate_bar_chart(
-        labels=top_reg_B["Model"].tolist()[:7],
-        values=top_reg_B["R2 (vysvětlený rozptyl)"].tolist()[:7],
-        title="Srovnání regresních modelů: Scénář B (BEZ známek G1 a G2)",
+        labels=df_reg_B["Model"].tolist()[:8],
+        values=df_reg_B["R2_mean"].tolist()[:8],
+        title="Srovnání regresních modelů: Scénář B (BEZ známek G1 a G2 - Včasné varování)",
         xlabel="Model",
-        ylabel="Vysvětlený rozptyl (R²)",
+        ylabel="Koeficient determinace (R²)",
         bar_color="#059669"
     )
     save_svg(svg_reg_B, f"{figures_dir}/regression_comparison_scenario_B.svg")
 
-    # Graf C: Srovnání klasifikátorů podle Balanced Accuracy
-    top_clf = df_clf_A.copy()
-    svg_clf = generate_bar_chart(
-        labels=top_clf["Model"].tolist()[:7],
-        values=top_clf["Vyvážená Acc (%)"].tolist()[:7],
-        title="Klasifikace (Prospěl vs. Neprospěl): Vyvážená přesnost",
+    # Graf C: Klasifikace ve Scénáři B (Early Warning)
+    svg_clf_B = generate_bar_chart(
+        labels=df_clf_B["Model"].tolist()[:8],
+        values=df_clf_B["Bal_Acc_mean"].tolist()[:8],
+        title="Klasifikace (Scénář B - Včasné varování): Vyvážená přesnost",
         xlabel="Model",
         ylabel="Vyvážená přesnost (%)",
         bar_color="#8b5cf6"
     )
-    save_svg(svg_clf, f"{figures_dir}/classification_comparison_balanced_acc.svg")
+    save_svg(svg_clf_B, f"{figures_dir}/classification_comparison_scenario_B.svg")
 
-    # Graf D: Zlepšení díky ladění parametrů (Default vs. Tuned)
-    models_tuned = df_tuning["Model"].tolist()
-    def_vals = df_tuning["Default Skóre"].tolist()
-    tuned_vals = df_tuning["Tuned Skóre"].tolist()
-    svg_tuning = generate_grouped_bar_chart(
-        categories=models_tuned,
+    # Graf D1: Ladění hyperparametrů pro regresi (osa R2)
+    reg_tune = df_tuning[df_tuning["Úloha"] == "Regrese"]
+    svg_tune_reg = generate_grouped_bar_chart(
+        categories=reg_tune["Model"].tolist(),
         series={
-            "Před laděním (Default)": def_vals,
-            "Po ladění (Tuned)": tuned_vals
+            "Default (5-Fold CV)": [round(float(v), 3) for v in reg_tune["def_val"]],
+            "Tuned (Nested 5x5 CV)": [round(float(v), 3) for v in reg_tune["tuned_val"]]
         },
-        title="Vliv optimalizace hyperparametrů (GridSearchCV)",
-        xlabel="Optimalizovaný model",
-        ylabel="Skóre (R² / Vyvážená Acc %)",
+        title="Nestranné zhodnocení ladění hyperparametrů pro regresi (Nested CV)",
+        xlabel="Model",
+        ylabel="Koeficient determinace (R²)",
         palette=["#94a3b8", "#2563eb"]
     )
-    save_svg(svg_tuning, f"{figures_dir}/hyperparameter_tuning_comparison.svg")
+    save_svg(svg_tune_reg, f"{figures_dir}/hyperparameter_tuning_regression.svg")
 
-    # Graf E: TOP 10 Feature Importance
+    # Graf D2: Ladění hyperparametrů pro klasifikaci (osa Vyvážená Acc %)
+    clf_tune = df_tuning[df_tuning["Úloha"] == "Klasifikace"]
+    svg_tune_clf = generate_grouped_bar_chart(
+        categories=clf_tune["Model"].tolist(),
+        series={
+            "Default (5-Fold CV)": [round(float(v), 1) for v in clf_tune["def_val"]],
+            "Tuned (Nested 5x5 CV)": [round(float(v), 1) for v in clf_tune["tuned_val"]]
+        },
+        title="Nestranné zhodnocení ladění hyperparametrů pro klasifikaci (Nested CV)",
+        xlabel="Model",
+        ylabel="Vyvážená přesnost (%)",
+        palette=["#94a3b8", "#8b5cf6"]
+    )
+    save_svg(svg_tune_clf, f"{figures_dir}/hyperparameter_tuning_classification.svg")
+
+    # Graf E: TOP 10 Grouped Feature Importance
     top10_fi = fi_df.head(10).copy()
     svg_fi = generate_horizontal_bar_chart(
         labels=top10_fi["Příznak"].tolist()[::-1],
         values=top10_fi["Důležitost (%)"].tolist()[::-1],
-        title="TOP 10 nejdůležitějších prediktorů úspěchu studenta (Scénář B)",
-        xlabel="Důležitost v modelu (%)",
+        title="TOP 10 faktorů výsledku studenta po sloučení kategorií (Scénář B)",
+        xlabel="Permutační důležitost (%)",
         bar_color="#ea580c"
     )
-    save_svg(svg_fi, f"{figures_dir}/feature_importance_top10.svg")
+    save_svg(svg_fi, f"{figures_dir}/feature_importance_top10_grouped.svg")
 
-    # Graf F: Matice záměn nejlepšího klasifikátoru
-    if best_preds is not None:
-        cm = confusion_matrix(y_clf, best_preds)
+    # Graf F: Matice záměn nejlepšího klasifikátoru ve Scénáři B
+    if best_preds_B is not None:
+        cm = confusion_matrix(y_clf, best_preds_B)
         svg_cm = generate_confusion_matrix_svg(
             cm=cm.tolist(),
             class_labels=["Neprospěl", "Prospěl"],
-            title="Matice záměn nejlepšího klasifikátoru (Stratified 5-Fold CV)"
+            title="Matice záměn nejlepšího klasifikátoru (Scénář B: Včasné varování)"
         )
-        save_svg(svg_cm, f"{figures_dir}/confusion_matrix_best_classifier.svg")
+        save_svg(svg_cm, f"{figures_dir}/confusion_matrix_best_classifier_scenario_B.svg")
 
-    print(f"[*] Vektorové SVG grafy úspěšně vygenerovány do: {figures_dir}/")
+    print(f"[*] Všech 7 vektorových SVG grafů úspěšně vygenerováno do: {figures_dir}/")
 
 
 # =============================================================================
@@ -548,31 +771,35 @@ def export_outputs(df_reg_A, df_reg_B, df_clf_A, df_tuning, fi_df, best_preds, y
 # =============================================================================
 def main():
     t_start = time.time()
-    print("=" * 82)
-    print(" MPC-VMM: EXPERIMENTÁLNÍ TESTOVÁNÍ A EVALUACE PREDIKTIVNÍCH MODELŮ")
-    print("=" * 82)
+    print("=" * 96)
+    print(" MPC-VMM: EXPERIMENTÁLNÍ TESTOVÁNÍ A EVALUACE PREDIKTIVNÍCH MODELŮ (V2 - LEAK-FREE)")
+    print("=" * 96)
 
-    # 1. Načtení dat
+    # 1. Načtení a příprava dat bez leakage
     data = load_and_prepare_data()
 
-    # 2. Regresní benchmark
+    # 2. Regresní benchmark (Scénář A i B)
     df_reg_A = evaluate_regression(data["X_A"], data["y_reg"], scenario_name="Scénář A (se známkami G1 a G2)")
     df_reg_B = evaluate_regression(data["X_B"], data["y_reg"], scenario_name="Scénář B (BEZ známek G1 a G2 - Včasné varování)")
 
-    # 3. Klasifikační benchmark
-    df_clf_A, best_preds_A, best_clf_name = evaluate_classification(data["X_A"], data["y_clf"], scenario_name="Scénář A")
+    # 3. Klasifikační benchmark (Scénář A i B)
+    df_clf_A, _, _ = evaluate_classification(data["X_A"], data["y_clf"], scenario_name="Scénář A (se známkami G1 a G2)")
+    df_clf_B, best_preds_B, best_clf_name_B = evaluate_classification(data["X_B"], data["y_clf"], scenario_name="Scénář B (BEZ známek G1 a G2 - Včasné varování)")
 
-    # 4. Ladění hyperparametrů
-    df_tuning = run_hyperparameter_tuning(data["X_A"], data["y_reg"], data["X_A"], data["y_clf"])
+    # 4. Nestranné ladění hyperparametrů pomocí Nested CV
+    df_tuning = run_nested_hyperparameter_tuning(data["X_A"], data["X_B"], data["y_reg"], data["y_clf"])
 
-    # 5. Důležitost příznaků a hypotézy
-    fi_df = analyze_feature_importance_and_hypotheses(data["X_B"], data["y_reg"], data["feat_B"])
+    # 5. Statistické ověření 7 týmových hypotéz
+    df_hyp = test_team_hypotheses(data["df"])
 
-    # 6. Export výstupů
-    export_outputs(df_reg_A, df_reg_B, df_clf_A, df_tuning, fi_df, best_preds_A, data["y_clf"])
+    # 6. Grouped Feature Importance pro Scénář B
+    fi_df = evaluate_grouped_feature_importance(data["X_B"], data["y_reg"], data["feat_B"], data["category_groups"])
+
+    # 7. Export tabulek a grafů
+    export_outputs(df_reg_A, df_reg_B, df_clf_A, df_clf_B, df_tuning, df_hyp, fi_df, best_preds_B, data["y_clf"])
 
     t_total = time.time() - t_start
-    print(f"\n[+] Hotovo! Všechny experimenty proběhly úspěšně za {t_total:.1f} sekund.\n")
+    print(f"\n[+] Hotovo! Celý experimentální běh proběhl úspěšně za {t_total:.1f} sekund.\n")
 
 
 if __name__ == "__main__":

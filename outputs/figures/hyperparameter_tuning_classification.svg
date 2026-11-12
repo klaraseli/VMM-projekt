@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 460" width="820" height="460" style="background:#ffffff; border-radius:8px; border:1px solid #e2e8f0; font-family:system-ui, sans-serif;">
+  <rect width="820" height="460" fill="#ffffff" rx="8"/>
+  <text x="370.0" y="28" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">Nestranné zhodnocení ladění hyperparametrů pro klasifikaci (Nested CV)</text>
+  <text x="370.0" y="448" text-anchor="middle" font-size="12" fill="#64748b">Model</text>
+  <text x="24" y="220.0" text-anchor="middle" font-size="12" fill="#64748b" transform="rotate(-90, 24, 220.0)">Vyvážená přesnost (%)</text>
+
+  <!-- Grid -->
+  <line x1="80" y1="380.0" x2="660" y2="380.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="316.0" x2="660" y2="316.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="252.0" x2="660" y2="252.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="188.0" x2="660" y2="188.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="124.0" x2="660" y2="124.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/><line x1="80" y1="60.0" x2="660" y2="60.0" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- Zero Line -->
+  <line x1="80" y1="380.0" x2="660" y2="380.0" stroke="#94a3b8" stroke-width="1.5"/>
+
+  <!-- Sloupce -->
+  <rect x="116.2" y="91.8" width="106.8" height="288.2" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="225.0" y="89.1" width="106.8" height="290.9" rx="2" fill="#8b5cf6" opacity="0.85"/><rect x="406.2" y="151.4" width="106.8" height="228.6" rx="2" fill="#94a3b8" opacity="0.85"/><rect x="515.0" y="121.1" width="106.8" height="258.9" rx="2" fill="#8b5cf6" opacity="0.85"/>
+
+  <!-- Popisky os -->
+  <text x="70" y="384.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">0.00</text><text x="70" y="320.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">18.59</text><text x="70" y="256.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">37.18</text><text x="70" y="192.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">55.77</text><text x="70" y="128.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">74.36</text><text x="70" y="64.0" text-anchor="end" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">92.95</text>
+  <text x="225.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >SVC (Balanced)</text><text x="515.0" y="398.0" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" >Random Forest…</text>
+
+  <!-- Legenda -->
+  <rect x="680" y="72" width="12" height="12" rx="2" fill="#94a3b8"/><text x="698" y="82" font-size="11" fill="#334155">Default (5-Fold CV)</text><rect x="680" y="96" width="12" height="12" rx="2" fill="#8b5cf6"/><text x="698" y="106" font-size="11" fill="#334155">Tuned (Nested 5x5 CV)</text>
+</svg>
